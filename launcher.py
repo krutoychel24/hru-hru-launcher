@@ -501,7 +501,7 @@ class MinecraftLauncher(QWidget):
         self.setWindowIcon(QIcon(icon_path))
 
     def init_ui(self):
-        self.setWindowTitle("ProstoLauncher")
+        self.setWindowTitle("Hru Hru Launcher")
         self.setFixedSize(900, 650)
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
