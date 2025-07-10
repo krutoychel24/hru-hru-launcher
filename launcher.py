@@ -7,13 +7,36 @@ import requests
 import minecraft_launcher_lib
 import uuid
 from datetime import datetime, timezone
-from PySide6.QtCore import (Qt, QThread, Signal, QPropertyAnimation, QEasingCurve,
-                            QSize, QPoint, QStandardPaths)
-from PySide6.QtGui import (QFont, QFontDatabase, QIcon, QPixmap, QColor)
-from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-                               QLabel, QComboBox, QLineEdit, QPushButton, QProgressBar,
-                               QFrame, QCheckBox, QSlider, QTabWidget, QTextEdit,
-                               QButtonGroup, QRadioButton, QGraphicsDropShadowEffect)
+from PySide6.QtCore import (
+    Qt,
+    QThread,
+    Signal,
+    QPropertyAnimation,
+    QEasingCurve,
+    QSize,
+    QPoint,
+    QStandardPaths,
+)
+from PySide6.QtGui import QFont, QFontDatabase, QIcon, QPixmap, QColor
+from PySide6.QtWidgets import (
+    QApplication,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QComboBox,
+    QLineEdit,
+    QPushButton,
+    QProgressBar,
+    QFrame,
+    QCheckBox,
+    QSlider,
+    QTabWidget,
+    QTextEdit,
+    QButtonGroup,
+    QRadioButton,
+    QGraphicsDropShadowEffect,
+)
 
 # Language settings
 LANGUAGES = {
@@ -56,7 +79,7 @@ LANGUAGES = {
         "version_type": "Тип версии:",
         "vanilla": "Vanilla",
         "forge": "Forge",
-        "fabric": "Fabric"
+        "fabric": "Fabric",
     },
     "en": {
         "title": "Hru Hru Launcher",
@@ -97,8 +120,8 @@ LANGUAGES = {
         "version_type": "Version Type:",
         "vanilla": "Vanilla",
         "forge": "Forge",
-        "fabric": "Fabric"
-    }
+        "fabric": "Fabric",
+    },
 }
 
 # SVG icons
@@ -110,26 +133,32 @@ CONSOLE_ICON_SVG = b'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="
 VERSION_ICON_SVG = b'<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="white"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41s-.22-1.05-.59-1.42zM13 20.01L4 11V4h7v-.01l9 9-7 7.01z"/><circle cx="6.5" cy="6.5" r="1.5"/></svg>'
 USERNAME_ICON_SVG = b'<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="white"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'
 
+
 def get_documents_path():
     """Returns the path to the user's Documents folder."""
     if sys.platform == "win32":
         import ctypes.wintypes
-        CSIDL_PERSONAL = 5       # My Documents
-        SHGFP_TYPE_CURRENT = 0   # Get current, not default value
+
+        CSIDL_PERSONAL = 5  # My Documents
+        SHGFP_TYPE_CURRENT = 0  # Get current, not default value
         buf = ctypes.create_unicode_buffer(ctypes.wintypes.MAX_PATH)
-        ctypes.windll.shell32.SHGetFolderPathW(None, CSIDL_PERSONAL, None, SHGFP_TYPE_CURRENT, buf)
+        ctypes.windll.shell32.SHGetFolderPathW(
+            None, CSIDL_PERSONAL, None, SHGFP_TYPE_CURRENT, buf
+        )
         return buf.value
-    elif sys.platform == "darwin": # macOS
+    elif sys.platform == "darwin":  # macOS
         return os.path.expanduser("~/Documents")
-    else: # Linux and other Unix-like systems
-        return os.path.expanduser("~/Documents") # Common for many Linux distros
+    else:  # Linux and other Unix-like systems
+        return os.path.expanduser("~/Documents")  # Common for many Linux distros
+
 
 def get_launcher_data_dir():
     """Returns the path to the custom launcher data directory."""
     documents_path = get_documents_path()
     launcher_dir = os.path.join(documents_path, "Hru Hru Studio", "Hru Hru Launcher")
-    os.makedirs(launcher_dir, exist_ok=True) # Create the directory if it doesn't exist
+    os.makedirs(launcher_dir, exist_ok=True)  # Create the directory if it doesn't exist
     return launcher_dir
+
 
 # Functions for launcher_profiles.json management
 def create_launcher_profiles_if_needed(minecraft_dir: str, client_token: str):
@@ -140,16 +169,19 @@ def create_launcher_profiles_if_needed(minecraft_dir: str, client_token: str):
             "settings": {
                 "locale": "ru_ru",
                 "enableSnapshots": True,
-                "enableAdvanced": False
+                "enableAdvanced": False,
             },
             "version": 2,
-            "clientToken": client_token
+            "clientToken": client_token,
         }
         with open(profiles_path, "w", encoding="utf-8") as f:
             json.dump(base_structure, f, indent=4)
         print(f"'{profiles_path}' created.")
 
-def add_profile(minecraft_dir: str, version_id: str, profile_name: str, icon: str = "Furnace"):
+
+def add_profile(
+    minecraft_dir: str, version_id: str, profile_name: str, icon: str = "Furnace"
+):
     profiles_path = os.path.join(minecraft_dir, "launcher_profiles.json")
     if not os.path.exists(profiles_path):
         print("Warning: launcher_profiles.json not found. Cannot add profile.")
@@ -166,16 +198,17 @@ def add_profile(minecraft_dir: str, version_id: str, profile_name: str, icon: st
             "lastUsed": now_iso,
             "lastVersionId": version_id,
             "name": profile_name,
-            "type": "custom"
+            "type": "custom",
         }
 
         data["profiles"][profile_id] = new_profile
         data["selectedProfile"] = profile_id
-        
+
         f.seek(0)
         json.dump(data, f, indent=4)
         f.truncate()
         print(f"Profile '{profile_name}' added.")
+
 
 # Helper classes for GUI
 class AnimatedButton(QPushButton):
@@ -203,6 +236,7 @@ class AnimatedButton(QPushButton):
             self.animation.start()
         super().leaveEvent(event)
 
+
 import os
 import uuid
 import subprocess
@@ -217,7 +251,18 @@ class MinecraftWorker(QThread):
     finished = Signal(str)
     log_message = Signal(str)
 
-    def __init__(self, mc_version, username, minecraft_dir, client_token, memory_gb=2, fullscreen=False, jvm_args=None, lang="ru", mod_loader=None):
+    def __init__(
+        self,
+        mc_version,
+        username,
+        minecraft_dir,
+        client_token,
+        memory_gb=2,
+        fullscreen=False,
+        jvm_args=None,
+        lang="ru",
+        mod_loader=None,
+    ):
         super().__init__()
         self.mc_version = mc_version
         self.username = username
@@ -230,89 +275,157 @@ class MinecraftWorker(QThread):
         self.mod_loader = mod_loader
 
     def _detect_forge_id(self, versions, base_mc_version):
-        build = self.mc_version.split('-')[-1]
+        build = self.mc_version.split("-")[-1]
         for v in versions:
-            vid = v['id'] if isinstance(v, dict) else v
-            if 'forge' in vid and base_mc_version in vid and build in vid:
+            vid = v["id"] if isinstance(v, dict) else v
+            if "forge" in vid and base_mc_version in vid and build in vid:
                 return vid
         return None
 
     def run(self):
         callback = {
             "setStatus": lambda text: self.log_and_update_status(text),
-            "setProgress": lambda value: self.progress_update.emit(value, 100, f"{LANGUAGES[self.lang]['downloading']} {value}%"),
-            "setMax": lambda value: None
+            "setProgress": lambda value: self.progress_update.emit(
+                value, 100, f"{LANGUAGES[self.lang]['downloading']} {value}%"
+            ),
+            "setMax": lambda value: None,
         }
         try:
             create_launcher_profiles_if_needed(self.minecraft_dir, self.client_token)
-            base_mc_version = self.mc_version.split('-')[0] if self.mod_loader == 'forge' else self.mc_version
+            base_mc_version = (
+                self.mc_version.split("-")[0]
+                if self.mod_loader == "forge"
+                else self.mc_version
+            )
             self.log_and_update_status(f"Checking base version: {base_mc_version}")
-            
+
             # This call uses minecraft_dir correctly, but library itself might use java.exe without flags
-            minecraft_launcher_lib.install.install_minecraft_version(base_mc_version, self.minecraft_dir, callback=callback)
-            
-            base_version_path = os.path.join(self.minecraft_dir, "versions", base_mc_version)
+            minecraft_launcher_lib.install.install_minecraft_version(
+                base_mc_version, self.minecraft_dir, callback=callback
+            )
+
+            base_version_path = os.path.join(
+                self.minecraft_dir, "versions", base_mc_version
+            )
             base_json_path = os.path.join(base_version_path, f"{base_mc_version}.json")
             if not os.path.isfile(base_json_path):
-                raise Exception(f"Base version {base_mc_version} is not installed correctly (no {base_mc_version}.json).")
-            
+                raise Exception(
+                    f"Base version {base_mc_version} is not installed correctly (no {base_mc_version}.json)."
+                )
+
             version_id_to_launch = base_mc_version
             profile_name = base_mc_version
 
-            if self.mod_loader in ['fabric', 'forge']:
+            if self.mod_loader in ["fabric", "forge"]:
                 mods_path = os.path.join(self.minecraft_dir, "mods")
                 if not os.path.exists(mods_path):
                     os.makedirs(mods_path)
                     self.log_and_update_status(f"Created 'mods' folder")
 
-                if self.mod_loader == 'fabric':
-                    self.log_and_update_status(f"Installing Fabric for {base_mc_version}")
-                    minecraft_launcher_lib.fabric.install_fabric(base_mc_version, self.minecraft_dir, callback=callback)
-                    installed_versions = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
-                    fabric_versions = [v for v in installed_versions if v["id"].startswith(f"fabric-loader-") and base_mc_version in v["id"]]
+                if self.mod_loader == "fabric":
+                    self.log_and_update_status(
+                        f"Installing Fabric for {base_mc_version}"
+                    )
+                    minecraft_launcher_lib.fabric.install_fabric(
+                        base_mc_version, self.minecraft_dir, callback=callback
+                    )
+                    installed_versions = (
+                        minecraft_launcher_lib.utils.get_installed_versions(
+                            self.minecraft_dir
+                        )
+                    )
+                    fabric_versions = [
+                        v
+                        for v in installed_versions
+                        if v["id"].startswith(f"fabric-loader-")
+                        and base_mc_version in v["id"]
+                    ]
                     if not fabric_versions:
-                        raise Exception(f"Fabric for Minecraft {base_mc_version} not found.")
+                        raise Exception(
+                            f"Fabric for Minecraft {base_mc_version} not found."
+                        )
                     version_id_to_launch = fabric_versions[0]["id"]
                     profile_name = f"{base_mc_version} Fabric"
-                elif self.mod_loader == 'forge':
+                elif self.mod_loader == "forge":
                     self.log_and_update_status(f"Installing Forge {self.mc_version}")
-                    installed_versions = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
-                    version_id_to_launch = self._detect_forge_id(installed_versions, base_mc_version)
+                    installed_versions = (
+                        minecraft_launcher_lib.utils.get_installed_versions(
+                            self.minecraft_dir
+                        )
+                    )
+                    version_id_to_launch = self._detect_forge_id(
+                        installed_versions, base_mc_version
+                    )
 
                     if version_id_to_launch:
                         profile_name = f"{base_mc_version} Forge"
-                        self.log_and_update_status(f"Forge already installed: {version_id_to_launch}")
+                        self.log_and_update_status(
+                            f"Forge already installed: {version_id_to_launch}"
+                        )
                     else:
-                        versions_before = {v['id'] for v in installed_versions}
-                        minecraft_launcher_lib.forge.install_forge_version(self.mc_version, self.minecraft_dir, callback=callback)
-                        installed_versions = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
-                        versions_after = {v['id'] for v in installed_versions}
+                        versions_before = {v["id"] for v in installed_versions}
+                        minecraft_launcher_lib.forge.install_forge_version(
+                            self.mc_version, self.minecraft_dir, callback=callback
+                        )
+                        installed_versions = (
+                            minecraft_launcher_lib.utils.get_installed_versions(
+                                self.minecraft_dir
+                            )
+                        )
+                        versions_after = {v["id"] for v in installed_versions}
                         new_versions = versions_after - versions_before
 
                         if new_versions:
                             version_id_to_launch = new_versions.pop()
                             profile_name = f"{base_mc_version} Forge"
-                            self.log_and_update_status(f"New Forge installed: {version_id_to_launch}")
+                            self.log_and_update_status(
+                                f"New Forge installed: {version_id_to_launch}"
+                            )
                         else:
-                            version_id_to_launch = self._detect_forge_id(installed_versions, base_mc_version)
+                            version_id_to_launch = self._detect_forge_id(
+                                installed_versions, base_mc_version
+                            )
                             if version_id_to_launch:
                                 profile_name = f"{base_mc_version} Forge"
-                                self.log_and_update_status(f"Forge found after installation: {version_id_to_launch}")
+                                self.log_and_update_status(
+                                    f"Forge found after installation: {version_id_to_launch}"
+                                )
                             else:
-                                raise Exception("Forge not installed and not found after installation.")
+                                raise Exception(
+                                    "Forge not installed and not found after installation."
+                                )
 
-                        forge_version_dir = os.path.join(self.minecraft_dir, "versions", version_id_to_launch)
-                        forge_json_path = os.path.join(forge_version_dir, f"{version_id_to_launch}.json")
-                        if not os.path.isfile(forge_json_path):
-                            self.log_and_update_status("Forge JSON not found. Attempting to extract from installer.jar...")
-                            if not self.extract_forge_json_from_installer(forge_json_path):
-                                self.log_and_update_status("Installer.jar not found locally. Downloading from Maven...")
-                                if not self.download_and_extract_installer(self.mc_version, forge_json_path):
-                                    self.log_and_update_status("Failed to extract Forge JSON. Generating manually...")
-                                    self.generate_forge_json(base_json_path, forge_json_path, version_id_to_launch, base_mc_version)
+                    forge_version_dir = os.path.join(
+                        self.minecraft_dir, "versions", version_id_to_launch
+                    )
+                    forge_json_path = os.path.join(
+                        forge_version_dir, f"{version_id_to_launch}.json"
+                    )
+                    if not os.path.isfile(forge_json_path):
+                        self.log_and_update_status(
+                            "Forge JSON not found. Attempting to extract from installer.jar..."
+                        )
+                        if not self.extract_forge_json_from_installer(forge_json_path):
+                            self.log_and_update_status(
+                                "Installer.jar not found locally. Downloading from Maven..."
+                            )
+                            if not self.download_and_extract_installer(
+                                self.mc_version, forge_json_path
+                            ):
+                                self.log_and_update_status(
+                                    "Failed to extract Forge JSON. Generating manually..."
+                                )
+                                self.generate_forge_json(
+                                    base_json_path,
+                                    forge_json_path,
+                                    version_id_to_launch,
+                                    base_mc_version,
+                                )
 
             if self.mod_loader and (version_id_to_launch == base_mc_version):
-                raise ValueError(f"Failed to find ID for {self.mod_loader} after installation.")
+                raise ValueError(
+                    f"Failed to find ID for {self.mod_loader} after installation."
+                )
             elif not version_id_to_launch:
                 raise ValueError("Failed to get final version ID for launch.")
 
@@ -320,15 +433,28 @@ class MinecraftWorker(QThread):
 
             all_jvm_args = [f"-Xmx{self.memory_gb}G", f"-Xms{self.memory_gb}G"]
             if self.jvm_args.get("use_g1gc", False):
-                all_jvm_args.extend([
-                    "-XX:+UseG1GC", "-XX:+ParallelRefProcEnabled", "-XX:MaxGCPauseMillis=200",
-                    "-XX:+UnlockExperimentalVMOptions", "-XX:+DisableExplicitGC", "-XX:+AlwaysPreTouch",
-                    "-XX:G1NewSizePercent=30", "-XX:G1MaxNewSizePercent=40", "-XX:G1HeapRegionSize=8M",
-                    "-XX:G1ReservePercent=20", "-XX:G1HeapWastePercent=5", "-XX:G1MixedGCCountTarget=4",
-                    "-XX:InitiatingHeapOccupancyPercent=15", "-XX:G1MixedGCLiveThresholdPercent=90",
-                    "-XX:G1RSetUpdatingPauseTimePercent=5", "-XX:SurvivorRatio=32", "-XX:+PerfDisableSharedMem",
-                    "-XX:MaxTenuringThreshold=1"
-                ])
+                all_jvm_args.extend(
+                    [
+                        "-XX:+UseG1GC",
+                        "-XX:+ParallelRefProcEnabled",
+                        "-XX:MaxGCPauseMillis=200",
+                        "-XX:+UnlockExperimentalVMOptions",
+                        "-XX:+DisableExplicitGC",
+                        "-XX:+AlwaysPreTouch",
+                        "-XX:G1NewSizePercent=30",
+                        "-XX:G1MaxNewSizePercent=40",
+                        "-XX:G1HeapRegionSize=8M",
+                        "-XX:G1ReservePercent=20",
+                        "-XX:G1HeapWastePercent=5",
+                        "-XX:G1MixedGCCountTarget=4",
+                        "-XX:InitiatingHeapOccupancyPercent=15",
+                        "-XX:G1MixedGCLiveThresholdPercent=90",
+                        "-XX:G1RSetUpdatingPauseTimePercent=5",
+                        "-XX:SurvivorRatio=32",
+                        "-XX:+PerfDisableSharedMem",
+                        "-XX:MaxTenuringThreshold=1",
+                    ]
+                )
 
             options = {
                 "username": self.username,
@@ -336,16 +462,20 @@ class MinecraftWorker(QThread):
                 "token": "0",
                 "jvmArguments": all_jvm_args,
                 "fullscreen": self.fullscreen,
-                "gameDirectory": get_launcher_data_dir() 
+                "gameDirectory": get_launcher_data_dir(),
             }
 
-            self.log_and_update_status(LANGUAGES[self.lang]['starting'])
-            
-            # Debug: print the minecraft_dir being used for clarity
-            self.log_message.emit(f"Using Minecraft data directory: {self.minecraft_dir}")
+            self.log_and_update_status(LANGUAGES[self.lang]["starting"])
 
-            command = minecraft_launcher_lib.command.get_minecraft_command(version_id_to_launch, self.minecraft_dir, options)
-            
+            # Debug: print the minecraft_dir being used for clarity
+            self.log_message.emit(
+                f"Using Minecraft data directory: {self.minecraft_dir}"
+            )
+
+            command = minecraft_launcher_lib.command.get_minecraft_command(
+                version_id_to_launch, self.minecraft_dir, options
+            )
+
             # --- NEW: Switch to javaw.exe for game launch ---
             # This part attempts to hide the console for the *game launch itself*.
             java_path = minecraft_launcher_lib.utils.get_java_executable()
@@ -353,29 +483,33 @@ class MinecraftWorker(QThread):
                 javaw_path = java_path.replace("java.exe", "javaw.exe")
                 if os.path.exists(javaw_path):
                     command[0] = javaw_path
-                    self.log_message.emit(f"Switched to javaw.exe for game launch: {javaw_path}")
+                    self.log_message.emit(
+                        f"Switched to javaw.exe for game launch: {javaw_path}"
+                    )
                 else:
-                    self.log_message.emit(f"javaw.exe not found at {javaw_path}. Falling back to java.exe.")
+                    self.log_message.emit(
+                        f"javaw.exe not found at {javaw_path}. Falling back to java.exe."
+                    )
             # --- END NEW BLOCK ---
 
             creationflags = 0
             if sys.platform == "win32":
                 creationflags = subprocess.SW_HIDE | subprocess.CREATE_NO_WINDOW
-            
+
             # --- CORRECTED SUBPROCESS.POPEN CALL ---
             process = subprocess.Popen(
                 command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                encoding='utf-8',
-                errors='replace',
+                encoding="utf-8",
+                errors="replace",
                 creationflags=creationflags,
-                cwd=options.get('gameDirectory')
+                cwd=options.get("gameDirectory"),
             )
             # --- END CORRECTED SUBPROCESS.POPEN CALL ---
 
-            for line in iter(process.stdout.readline, ''):
+            for line in iter(process.stdout.readline, ""):
                 self.log_message.emit(line.strip())
             process.wait()
             self.finished.emit("success")
@@ -389,23 +523,35 @@ class MinecraftWorker(QThread):
             installer_path = self.find_installer_jar()
             if not installer_path:
                 return False
-            import zipfile # Ensure zipfile is imported inside the function or at top level
-            with zipfile.ZipFile(installer_path, 'r') as jar:
-                with jar.open('install_profile.json') as f:
+            import zipfile  # Ensure zipfile is imported inside the function or at top level
+
+            with zipfile.ZipFile(installer_path, "r") as jar:
+                with jar.open("install_profile.json") as f:
                     install_profile = json.load(f)
-                    forge_json_data = install_profile['versionInfo']
+                    forge_json_data = install_profile["versionInfo"]
             os.makedirs(os.path.dirname(forge_json_path), exist_ok=True)
             with open(forge_json_path, "w", encoding="utf-8") as f:
                 json.dump(forge_json_data, f, indent=4)
-            self.log_and_update_status(f"Forge JSON successfully extracted: {forge_json_path}")
+            self.log_and_update_status(
+                f"Forge JSON successfully extracted: {forge_json_path}"
+            )
             return True
         except Exception as e:
             self.log_and_update_status(f"Failed to extract Forge JSON: {e}")
             return False
 
     def find_installer_jar(self):
-        forge_lib_path = os.path.join(self.minecraft_dir, "libraries", "net", "minecraftforge", "forge", self.mc_version)
-        for file in os.listdir(forge_lib_path) if os.path.exists(forge_lib_path) else []:
+        forge_lib_path = os.path.join(
+            self.minecraft_dir,
+            "libraries",
+            "net",
+            "minecraftforge",
+            "forge",
+            self.mc_version,
+        )
+        for file in (
+            os.listdir(forge_lib_path) if os.path.exists(forge_lib_path) else []
+        ):
             if file.endswith("-installer.jar"):
                 return os.path.join(forge_lib_path, file)
         return None
@@ -414,7 +560,8 @@ class MinecraftWorker(QThread):
         try:
             url = f"https://maven.minecraftforge.net/net/minecraftforge/forge/{forge_version}/forge-{forge_version}-installer.jar"
             installer_tmp = os.path.join(self.minecraft_dir, "tmp_installer.jar")
-            import urllib.request # Ensure urllib.request is imported
+            import urllib.request  # Ensure urllib.request is imported
+
             urllib.request.urlretrieve(url, installer_tmp)
             self.log_and_update_status(f"Downloaded installer.jar: {url}")
             result = self.extract_forge_json_from_installer(forge_json_path)
@@ -424,7 +571,9 @@ class MinecraftWorker(QThread):
             self.log_and_update_status(f"Failed to download installer.jar: {e}")
             return False
 
-    def generate_forge_json(self, base_json_path, forge_json_path, version_id, base_version):
+    def generate_forge_json(
+        self, base_json_path, forge_json_path, version_id, base_version
+    ):
         try:
             with open(base_json_path, "r", encoding="utf-8") as f:
                 base_json = json.load(f)
@@ -432,11 +581,16 @@ class MinecraftWorker(QThread):
             base_json["inheritsFrom"] = base_version
             base_json["mainClass"] = "net.minecraft.launchwrapper.Launch"
             base_json.setdefault("arguments", {})
-            base_json["arguments"]["game"] = ["--tweakClass", "net.minecraftforge.fml.common.launcher.FMLTweaker"]
+            base_json["arguments"]["game"] = [
+                "--tweakClass",
+                "net.minecraftforge.fml.common.launcher.FMLTweaker",
+            ]
             os.makedirs(os.path.dirname(forge_json_path), exist_ok=True)
             with open(forge_json_path, "w", encoding="utf-8") as f:
                 json.dump(base_json, f, indent=4)
-            self.log_and_update_status(f"Forge JSON manually generated: {forge_json_path}")
+            self.log_and_update_status(
+                f"Forge JSON manually generated: {forge_json_path}"
+            )
         except Exception as e:
             raise Exception(f"Error generating Forge JSON: {e}")
 
@@ -444,13 +598,16 @@ class MinecraftWorker(QThread):
         self.progress_update.emit(0, 1, text)
         self.log_message.emit(f"[{datetime.now().strftime('%H:%M:%S')}] {text}")
 
+
 # Main Launcher Window
 class MinecraftLauncher(QWidget):
     def __init__(self):
         super().__init__()
         self.worker = None
         self.version_loader = None
-        self.settings_file_path = os.path.join(get_launcher_data_dir(), "launcher_settings.json")
+        self.settings_file_path = os.path.join(
+            get_launcher_data_dir(), "launcher_settings.json"
+        )
         self.settings = self.load_settings()
         self.current_language = self.settings.get("language", "ru")
         self.current_theme = self.settings.get("theme", "dark")
@@ -458,7 +615,13 @@ class MinecraftLauncher(QWidget):
         self.init_fonts()
         self.init_icons()
         self.init_ui()
-        self.minecraft_directory = minecraft_launcher_lib.utils.get_minecraft_directory()
+        self.minecraft_directory = (
+            minecraft_launcher_lib.utils.get_minecraft_directory()
+        )
+        # --- ДОБАВЛЕННЫЙ КОД ---
+        # Гарантирует, что папка .minecraft существует
+        os.makedirs(self.minecraft_directory, exist_ok=True)
+        # --- КОНЕЦ ДОБАВЛЕННОГО КОДА ---
         self.old_pos = None
         self.setWindowOpacity(0)
         self.fade_in_animation = QPropertyAnimation(self, b"windowOpacity")
@@ -477,7 +640,9 @@ class MinecraftLauncher(QWidget):
             self.title_font = QFont(font_families[0], 28, QFont.Bold)
             self.subtitle_font = QFont(font_families[0], 14)
         else:
-            print(f"WARNING: Font 'Minecraftia.ttf' not found in '{script_dir}'. Using default font.")
+            print(
+                f"WARNING: Font 'Minecraftia.ttf' not found in '{script_dir}'. Using default font."
+            )
             self.minecraft_font = QFont("Arial", 10)
             self.title_font = QFont("Arial", 24, QFont.Bold)
             self.subtitle_font = QFont("Arial", 12)
@@ -487,13 +652,14 @@ class MinecraftLauncher(QWidget):
             pixmap = QPixmap()
             pixmap.loadFromData(svg_data)
             return QIcon(pixmap)
+
         self.play_icon = create_icon(PLAY_ICON_SVG)
         self.settings_icon = create_icon(SETTINGS_ICON_SVG)
         self.news_icon = create_icon(NEWS_ICON_SVG)
         self.console_icon = create_icon(CONSOLE_ICON_SVG)
         self.version_icon = create_icon(VERSION_ICON_SVG)
         self.username_icon = create_icon(USERNAME_ICON_SVG)
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
             icon_path = os.path.join(sys._MEIPASS, "launcher-icon.ico")
         else:
             icon_path = "launcher-icon.ico"
@@ -527,7 +693,7 @@ class MinecraftLauncher(QWidget):
         self.apply_theme()
         self.update_ui_text()
         self.populate_versions(self.current_version_type)
-        
+
     def create_title_bar(self, main_layout):
         title_bar = QWidget()
         title_bar.setObjectName("titleBar")
@@ -541,7 +707,7 @@ class MinecraftLauncher(QWidget):
         glow_effect = QGraphicsDropShadowEffect(self)
         glow_effect.setColor(QColor(64, 158, 255))
         glow_effect.setBlurRadius(25)
-        glow_effect.setOffset(0,0)
+        glow_effect.setOffset(0, 0)
         self.title_label.setGraphicsEffect(glow_effect)
         title_layout.addWidget(self.title_label)
         title_layout.addStretch()
@@ -550,7 +716,7 @@ class MinecraftLauncher(QWidget):
         self.minimize_button.setObjectName("minimizeButton")
         self.minimize_button.setFixedSize(30, 30)
         self.minimize_button.clicked.connect(self.showMinimized)
-        
+
         self.close_button = QPushButton("✕")
         self.close_button.setObjectName("closeButton")
         self.close_button.setFixedSize(30, 30)
@@ -576,15 +742,19 @@ class MinecraftLauncher(QWidget):
         self.vanilla_radio = QRadioButton()
         self.forge_radio = QRadioButton()
         self.fabric_radio = QRadioButton()
-        
+
         version_type_map = {"vanilla": 0, "forge": 1, "fabric": 2}
-        self.version_type_group.addButton(self.vanilla_radio, version_type_map["vanilla"])
+        self.version_type_group.addButton(
+            self.vanilla_radio, version_type_map["vanilla"]
+        )
         self.version_type_group.addButton(self.forge_radio, version_type_map["forge"])
         self.version_type_group.addButton(self.fabric_radio, version_type_map["fabric"])
-        
+
         if self.current_version_type not in version_type_map:
             self.current_version_type = "vanilla"
-        self.version_type_group.button(version_type_map.get(self.current_version_type, 0)).setChecked(True)
+        self.version_type_group.button(
+            version_type_map.get(self.current_version_type, 0)
+        ).setChecked(True)
         self.version_type_group.idClicked.connect(self.change_version_type)
 
         version_type_layout = QHBoxLayout()
@@ -688,7 +858,7 @@ class MinecraftLauncher(QWidget):
         self.theme_group.addButton(self.dark_theme_radio, 0)
         self.theme_group.addButton(self.light_theme_radio, 1)
         self.theme_group.addButton(self.neon_theme_radio, 2)
-        
+
         theme_map = {"dark": 0, "light": 1, "neon": 2}
         self.theme_group.button(theme_map.get(self.current_theme, 0)).setChecked(True)
         self.theme_group.idClicked.connect(self.change_theme)
@@ -709,7 +879,9 @@ class MinecraftLauncher(QWidget):
         self.fullscreen_checkbox = QCheckBox()
         self.fullscreen_checkbox.setChecked(self.settings.get("fullscreen", False))
         self.close_launcher_checkbox = QCheckBox()
-        self.close_launcher_checkbox.setChecked(self.settings.get("close_launcher", True))
+        self.close_launcher_checkbox.setChecked(
+            self.settings.get("close_launcher", True)
+        )
 
         self.advanced_settings_button = QPushButton()
         self.advanced_settings_button.setCheckable(True)
@@ -779,24 +951,34 @@ class MinecraftLauncher(QWidget):
 
     def load_settings(self):
         defaults = {
-            "language": "ru", "theme": "dark", "memory": 4, "fullscreen": False, 
-            "close_launcher": True, "last_username": "", "use_g1gc": False, 
-            "version_type": "vanilla", "last_version": ""
+            "language": "ru",
+            "theme": "dark",
+            "memory": 4,
+            "fullscreen": False,
+            "close_launcher": True,
+            "last_username": "",
+            "use_g1gc": False,
+            "version_type": "vanilla",
+            "last_version": "",
         }
-        if os.path.exists(self.settings_file_path): 
+        if os.path.exists(self.settings_file_path):
             try:
-                with open(self.settings_file_path, 'r', encoding='utf-8') as f:
+                with open(self.settings_file_path, "r", encoding="utf-8") as f:
                     settings = json.load(f)
                 defaults.update(settings)
-            except (json.JSONDecodeError, IOError):
-                print(f"Error loading settings from {self.settings_file_path}. Using default settings. Error: {e}")
+            except (json.JSONDecodeError, IOError) as e:
+                print(
+                    f"Error loading settings from {self.settings_file_path}. Using default settings. Error: {e}"
+                )
                 pass
         if "clientToken" not in defaults:
             defaults["clientToken"] = uuid.uuid4().hex
         return defaults
 
     def save_settings(self):
-        self.settings["clientToken"] = self.settings.get("clientToken", uuid.uuid4().hex)
+        self.settings["clientToken"] = self.settings.get(
+            "clientToken", uuid.uuid4().hex
+        )
         settings = {
             "language": self.current_language,
             "theme": self.current_theme,
@@ -807,9 +989,9 @@ class MinecraftLauncher(QWidget):
             "use_g1gc": self.g1gc_checkbox.isChecked(),
             "version_type": self.current_version_type,
             "last_version": self.version_combo.currentText(),
-            "clientToken": self.settings["clientToken"]
+            "clientToken": self.settings["clientToken"],
         }
-        with open(self.settings_file_path, 'w', encoding='utf-8') as f:
+        with open(self.settings_file_path, "w", encoding="utf-8") as f:
             json.dump(settings, f, ensure_ascii=False, indent=4)
 
     def change_language(self, language_text):
@@ -856,7 +1038,11 @@ class MinecraftLauncher(QWidget):
         self.fabric_radio.setText(lang["fabric"])
 
     def apply_theme(self):
-        themes = {"dark": self.get_dark_theme(), "light": self.get_light_theme(), "neon": self.get_neon_theme()}
+        themes = {
+            "dark": self.get_dark_theme(),
+            "light": self.get_light_theme(),
+            "neon": self.get_neon_theme(),
+        }
         self.setStyleSheet(themes.get(self.current_theme, self.get_dark_theme()))
 
     def get_dark_theme(self):
@@ -1049,24 +1235,35 @@ class MinecraftLauncher(QWidget):
     def populate_versions(self, version_type="vanilla"):
         self.version_combo.clear()
         self.version_combo.setEnabled(False)
-        self.version_combo.setPlaceholderText(LANGUAGES[self.current_language]["loading_versions"])
-        
+        self.version_combo.setPlaceholderText(
+            LANGUAGES[self.current_language]["loading_versions"]
+        )
+
         class VersionLoader(QThread):
             finished = Signal(list)
             error = Signal(str)
+
             def __init__(self, v_type):
                 super().__init__()
                 self.v_type = v_type
-            
+
             def run(self):
                 version_list = []
                 try:
                     if self.v_type == "vanilla":
-                        version_list = [v['id'] for v in minecraft_launcher_lib.utils.get_version_list() if v['type'] == 'release']
+                        version_list = [
+                            v["id"]
+                            for v in minecraft_launcher_lib.utils.get_version_list()
+                            if v["type"] == "release"
+                        ]
                     elif self.v_type == "forge":
-                        version_list = minecraft_launcher_lib.forge.list_forge_versions()
+                        version_list = (
+                            minecraft_launcher_lib.forge.list_forge_versions()
+                        )
                     elif self.v_type == "fabric":
-                        version_list = minecraft_launcher_lib.fabric.get_stable_minecraft_versions()
+                        version_list = (
+                            minecraft_launcher_lib.fabric.get_stable_minecraft_versions()
+                        )
                     self.finished.emit(version_list)
                 except Exception as e:
                     print(f"Error loading {self.v_type} versions: {e}")
@@ -1084,8 +1281,10 @@ class MinecraftLauncher(QWidget):
         if last_version and self.version_combo.findText(last_version) != -1:
             self.version_combo.setCurrentText(last_version)
         self.version_combo.setEnabled(True)
-        self.version_combo.setPlaceholderText(LANGUAGES[self.current_language]["select_version"])
-    
+        self.version_combo.setPlaceholderText(
+            LANGUAGES[self.current_language]["select_version"]
+        )
+
     def on_version_load_error(self, error_msg):
         self.version_combo.setPlaceholderText("Error loading versions")
         self.error_label.setText(f"Failed to load version list: {error_msg}")
@@ -1097,7 +1296,9 @@ class MinecraftLauncher(QWidget):
 
         username = self.user_input.text()
         if not username:
-            self.error_label.setText(LANGUAGES[self.current_language]["enter_username_error"])
+            self.error_label.setText(
+                LANGUAGES[self.current_language]["enter_username_error"]
+            )
             self.error_label.setVisible(True)
             return
 
@@ -1105,14 +1306,16 @@ class MinecraftLauncher(QWidget):
         self.launch_button.setText(LANGUAGES[self.current_language]["launching"])
         self.progress_bar.setVisible(True)
         self.error_label.setVisible(False)
-        self.tab_widget.setCurrentIndex(2) # Switch to console tab
+        self.tab_widget.setCurrentIndex(2)  # Switch to console tab
 
-        jvm_args = {
-            "use_g1gc": self.g1gc_checkbox.isChecked()
-        }
+        jvm_args = {"use_g1gc": self.g1gc_checkbox.isChecked()}
 
         selected_version = self.version_combo.currentText()
-        mod_loader = self.current_version_type if self.current_version_type != "vanilla" else None
+        mod_loader = (
+            self.current_version_type
+            if self.current_version_type != "vanilla"
+            else None
+        )
 
         self.worker = MinecraftWorker(
             mc_version=selected_version,
@@ -1123,7 +1326,7 @@ class MinecraftLauncher(QWidget):
             fullscreen=self.fullscreen_checkbox.isChecked(),
             jvm_args=jvm_args,
             lang=self.current_language,
-            mod_loader=mod_loader 
+            mod_loader=mod_loader,
         )
 
         self.worker.progress_update.connect(self.update_progress)
@@ -1174,7 +1377,11 @@ class MinecraftLauncher(QWidget):
     def toggle_advanced_settings(self, checked):
         lang = LANGUAGES[self.current_language]
         self.advanced_settings_frame.setVisible(checked)
-        self.advanced_settings_button.setText(lang["advanced_settings_hide"] if checked else lang["advanced_settings_show"])
+        self.advanced_settings_button.setText(
+            lang["advanced_settings_hide"]
+            if checked
+            else lang["advanced_settings_show"]
+        )
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -1202,6 +1409,7 @@ class MinecraftLauncher(QWidget):
     def show(self):
         super().show()
         self.fade_in_animation.start()
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
