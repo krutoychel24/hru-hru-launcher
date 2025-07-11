@@ -29,11 +29,9 @@ To set up and run this project locally, follow these steps:
 
 1.  **Clone the repository** (or download the source code):
     ```bash
-    git clone [https://github.com/your-username/Hru-Hru-Launcher.git](https://github.com/your-username/Hru-Hru-Launcher.git)
+    git clone https://github.com/krutoychel24/hru-hru-launcher
     cd Hru-Hru-Launcher
     ```
-    (Replace `your-username/Hru-Hru-Launcher.git` with your actual repository link).
-
 2.  **Create a Virtual Environment** (highly recommended):
     ```bash
     python -m venv venv
