@@ -1,0 +1,4 @@
+PySide6
+minecraft-launcher-lib
+requests
+tomli
