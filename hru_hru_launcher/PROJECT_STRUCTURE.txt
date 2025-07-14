@@ -1,90 +1,101 @@
-# Структура проекта Hru Hru Launcher
+Hru Hru Launcher Project Structure
 
-Этот документ описывает структуру файлов и папок проекта кастомного лаунчера Minecraft. Он предназначен для личного использования в качестве напоминания, а также для предоставления контекста нейросетям и другим разработчикам.
+This document describes the file and folder structure of a custom Minecraft launcher project. It is intended for personal use as a reminder, as well as to provide context for neural networks and other developers.
 
----
+🚀 How to Run
 
-### 🚀 Как запустить
+To launch the application, follow these steps:
 
-Для запуска лаунчера выполните следующие шаги:
+    Make sure you are in the root folder of the project (HruHruLauncher, where this file is located).
 
-1.  Убедитесь, что вы находитесь в **корневой** папке проекта (`HruHruLauncher`, там же, где находится этот файл).
-2.  Если вы запускаете проект впервые, установите все зависимости:
-    ```bash
-    pip install -r requirements.txt
-    ```
-3.  Выполните следующую команду для запуска приложения:
+    If you are running the project for the first time, install all dependencies:
+    Bash
 
-    ```bash
+pip install -r requirements.txt
+
+Execute the following command to run the application:
+Bash
+
     python -m hru_hru_launcher.main
-    ```
 
----
-
-### 📂 Структура файлов
+📂 File Structure
 
 HruHruLauncher/
 ├── assets/
 │   ├── Minecraftia.ttf
 │   └── launcher-icon.ico
 ├── hru_hru_launcher/
-│   ├── init.py
+│   ├── __init__.py
 │   ├── core/
-│   │   ├── init.py
+│   │   ├── __init__.py
 │   │   ├── mc_worker.py
 │   │   └── profile_manager.py
 │   ├── ui/
-│   │   ├── init.py
+│   │   ├── __init__.py
 │   │   ├── main_window.py
 │   │   ├── themes.py
 │   │   └── widgets.py
 │   ├── utils/
-│   │   ├── init.py
+│   │   ├── __init__.py
 │   │   └── paths.py
 │   ├── config/
-│   │   ├── init.py
+│   │   ├── __init__.py
 │   │   ├── resources.py
 │   │   └── settings.py
 │   └── main.py
 ├── requirements.txt
-└── README.md (этот файл)
+└── README.md (this file)
 
+📝 Component Descriptions
 
----
+assets/
 
-### 📝 Описание компонентов
+A folder for storing non-code resources.
 
-#### `assets/`
-Папка для хранения ресурсов, не являющихся кодом.
-- `Minecraftia.ttf`: Кастомный шрифт, используемый в интерфейсе.
-- `launcher-icon.ico`: Иконка приложения.
+    Minecraftia.ttf: Custom font used in the interface.
 
-#### `hru_hru_launcher/`
-Основная папка проекта, которая является Python-пакетом. Весь исходный код находится здесь.
+    launcher-icon.ico: Application icon.
 
-- **`__init__.py`**: Пустой файл, который сообщает Python, что эта папка является пакетом, и позволяет импортировать модули из неё.
+hru_hru_launcher/
 
-##### `config/`
-Модули, отвечающие за конфигурацию и статичные данные.
-- `resources.py`: Хранит словари с текстами для разных языков (локализация) и SVG-данные для иконок.
-- `settings.py`: Содержит функции для загрузки и сохранения настроек лаунчера (таких как тема, выделенная память, последний никнейм) в JSON-файл.
+The main project folder, which is a Python package. All source code is located here.
 
-##### `core/`
-Основная "бэкенд"-логика приложения, не связанная с интерфейсом.
-- `mc_worker.py`: Самый важный рабочий модуль. Класс `MinecraftWorker` в отдельном потоке (QThread) выполняет все тяжелые задачи: скачивание файлов игры, установку версий (Vanilla, Forge, Fabric) и запуск самого процесса Minecraft.
-- `profile_manager.py`: Функции для работы с файлом `launcher_profiles.json` в папке `.minecraft`.
+    __init__.py: An empty file that tells Python that this folder is a package and allows importing modules from it.
 
-##### `ui/`
-Всё, что связано с пользовательским интерфейсом (UI), созданным на PySide6.
-- `main_window.py`: Определяет главный класс `MinecraftLauncher`, который является основным окном приложения. Собирает все виджеты, управляет вкладками, обрабатывает нажатия кнопок и связывает интерфейс с `core`-логикой.
-- `themes.py`: Содержит функции, возвращающие строки со стилями (QSS) для разных тем оформления (тёмная, светлая, неоновая).
-- `widgets.py`: Содержит кастомные, переиспользуемые виджеты. Например, `AnimatedButton` — кнопка с анимацией при наведении.
+config/
 
-##### `utils/`
-Вспомогательные утилиты, которые могут использоваться в разных частях проекта.
-- `paths.py`: Функции для получения путей к системным папкам, таким как "Документы" или папка с ассетами.
+Modules responsible for configuration and static data.
 
-- **`main.py`**: **Точка входа** в приложение. Это самый простой файл, единственная задача которого — создать экземпляр QApplication, показать главное окно (`MinecraftLauncher`) и запустить цикл событий приложения.
+    resources.py: Stores dictionaries with texts for different languages (localization) and SVG data for icons.
 
-#### `requirements.txt`
-Текстовый файл, в котором перечислены все внешние библиотеки, необходимые для работы проекта (например, `PySide6`, `minecraft-launcher-lib`).
+    settings.py: Contains functions for loading and saving launcher settings (such as theme, allocated memory, last nickname) to a JSON file.
+
+core/
+
+The main "backend" logic of the application, not related to the interface.
+
+    mc_worker.py: The most important worker module. The MinecraftWorker class runs all heavy tasks in a separate thread (QThread): downloading game files, installing versions (Vanilla, Forge, Fabric), and launching the Minecraft process itself.
+
+    profile_manager.py: Functions for working with the launcher_profiles.json file in the .minecraft folder.
+
+ui/
+
+Everything related to the user interface (UI), created with PySide6.
+
+    main_window.py: Defines the main MinecraftLauncher class, which is the main application window. It assembles all widgets, manages tabs, handles button clicks, and connects the interface with the core logic.
+
+    themes.py: Contains functions that return strings with styles (QSS) for different themes (dark, light, neon).
+
+    widgets.py: Contains custom, reusable widgets. For example, AnimatedButton—a button with an animation on hover.
+
+utils/
+
+Helper utilities that can be used in different parts of the project.
+
+    paths.py: Functions for getting paths to system folders, such as "Documents" or the assets folder.
+
+    main.py: The entry point of the application. This is the simplest file, whose only task is to create a QApplication instance, show the main window (MinecraftLauncher), and start the application's event loop.
+
+requirements.txt
+
+A text file that lists all external libraries required for the project to work (e.g., PySide6, minecraft-launcher-lib).
