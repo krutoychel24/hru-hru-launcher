@@ -17,6 +17,20 @@ Hru Hru Launcher is a custom Minecraft launcher built with Python and PySide6, p
 
 ---
 
+### 👋 Contact me:
+
+<p align="left">
+  <a href="https://t.me/krutoychel24" target="_blank">
+    <img src="https://img.shields.io/badge/Telegram-@krutoychel24-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="telegram"/>
+  </a>
+  <a href="https://discord.gg/t485rd37" target="_blank">
+    <img src="https://img.shields.io/badge/Discord-HruHruStudio-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="discord"/>
+  </a>
+  <a href="mailto:krutoychel.info@gmail.com">
+    <img src="https://img.shields.io/badge/Gmail-Write-D14836?style=for-the-badge&logo=gmail&logoColor=white" alt="gmail"/>
+  </a>
+</p>
+
 ## Preview
 
 ![Launcher Screenshot](https://i.postimg.cc/y8hygM23/Screenshot-2025-07-14-050917.png)
@@ -65,3 +79,4 @@ After setting up the environment, you can run the launcher directly from the Pyt
 
 ```bash
 python launcher.py
+```
