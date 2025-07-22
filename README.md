@@ -80,3 +80,14 @@ After setting up the environment, you can run the launcher directly from the Pyt
 ```bash
 python launcher.py
 ```
+
+---
+### Disclaimer
+
+This is an unofficial Minecraft launcher. It is not affiliated with Mojang, Microsoft, or Minecraft.
+
+The launcher supports offline mode for testing or singleplayer use only.
+
+You must own a legal copy of Minecraft to use this launcher.
+
+All Minecraft libraries are downloaded from official Mojang servers.
