@@ -2,8 +2,12 @@ import requests
 import os
 import json
 import zipfile
-import tomli
 import logging
+
+try:
+    import tomllib as tomli
+except ImportError:
+    import tomli
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -56,11 +60,13 @@ def get_mod_id_from_jar(jar_path: str):
                     custom_data = data.get("custom", {})
                     return custom_data.get("modrinth", {}).get("project_id") or data.get('id')
             elif 'META-INF/mods.toml' in jar.namelist():
-                with jar.open('META-INF/mods.toml') as f:
-                    data = tomli.load(f)
+                with jar.open('META-INF/mods.toml', 'r') as f:
+                    # tomli.load() ожидает бинарный файл, поэтому используем 'rb'
+                    # Но так как мы уже открыли файл как текстовый, декодируем его
+                    data = tomli.loads(f.read().decode('utf-8'))
                     if 'mods' in data and len(data['mods']) > 0:
                         return data['mods'][0].get('modId')
-    except (zipfile.BadZipFile, json.JSONDecodeError, tomli.TOMLDecodeError, KeyError, IndexError) as e:
+    except (zipfile.BadZipFile, json.JSONDecodeError, tomli.TOMLDecodeError, KeyError, IndexError, AttributeError) as e:
         logging.warning(f"Не удалось прочитать mod ID из {os.path.basename(jar_path)}: {e}")
         return None
     return None

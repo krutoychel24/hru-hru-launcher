@@ -1,17 +1,21 @@
-# hru_hru_launcher/ui/main_window.py
-
 import sys
 import os
 import json
 import subprocess
 import traceback
 import logging
+import shutil
+import base64
 from functools import partial
+from pathlib import Path
+
+import requests
 from PySide6.QtCore import (Qt, QThread, Signal, QPropertyAnimation, QEasingCurve, QSize, QPoint, QUrl)
 from PySide6.QtGui import (QFont, QFontDatabase, QIcon, QPixmap, QColor, QStandardItemModel, QStandardItem, QDesktopServices)
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton,
-                                 QProgressBar, QFrame, QCheckBox, QSlider, QTabWidget, QTextEdit,
-                                 QButtonGroup, QRadioButton, QGraphicsDropShadowEffect, QColorDialog, QListWidget, QListWidgetItem)
+                               QProgressBar, QFrame, QCheckBox, QSlider, QTabWidget, QTextEdit,
+                               QButtonGroup, QRadioButton, QGraphicsDropShadowEffect, QColorDialog, QListWidget, QListWidgetItem, QMessageBox, QDialog)
+
 import minecraft_launcher_lib
 
 from .widgets import AnimatedButton
@@ -22,6 +26,151 @@ from ..core import mod_manager
 from ..utils.paths import get_assets_dir
 from ..config import resources, settings
 
+# --- AUTO-UPDATE SETTINGS ---
+APP_VERSION = "v1.1.1-beta"
+API_URL = "https://api.github.com/repos/krutoychel24/hru-hru-launcher/releases/latest"
+DOWNLOAD_URL_TEMPLATE = "https://github.com/krutoychel24/hru-hru-launcher/releases/download/{tag}/{filename}"
+# --- END AUTO-UPDATE SETTINGS ---
+
+class UpdateDialog(QDialog):
+    update_requested = Signal()
+
+    def __init__(self, status_info, fonts, parent=None):
+        super().__init__(parent)
+        self.status_info = status_info
+        self.fonts = fonts
+        
+        self.icons = {
+            "check": b"""
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#78f542" viewBox="0 0 256 256">
+                <path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"></path>
+            </svg>
+            """,
+            "download": b"""
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#ff5555" viewBox="0 0 256 256">
+                <path d="M208,152v48a8,8,0,0,1-8,8H56a8,8,0,0,1-8-8V152a8,8,0,0,1,16,0v40H192V152a8,8,0,0,1,16,0Zm-85.66,5.66a8,8,0,0,0,11.32,0l48-48a8,8,0,0,0-11.32-11.32L136,132.69V40a8,8,0,0,0-16,0v92.69L85.66,98.34a8,8,0,0,0-11.32,11.32Z"></path>
+            </svg>
+            """
+        }
+        
+        self.init_ui()
+        
+        self.setWindowOpacity(0)
+        self.fade_in_animation = QPropertyAnimation(self, b"windowOpacity")
+        self.fade_in_animation.setDuration(300)
+        self.fade_in_animation.setStartValue(0)
+        self.fade_in_animation.setEndValue(1)
+        self.fade_in_animation.setEasingCurve(QEasingCurve.OutCubic)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.fade_in_animation.start()
+
+    def init_ui(self):
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Dialog)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setFixedSize(400, 220)
+
+        container = QFrame(self)
+        container.setObjectName("updateDialogContainer")
+        
+        main_layout = QVBoxLayout(container)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(15)
+
+        title_label = QLabel("Update Status")
+        title_label.setObjectName("updateDialogTitle")
+        title_label.setFont(self.fonts["subtitle"])
+        
+        info_layout = QHBoxLayout()
+        icon_label = QLabel()
+        icon_pixmap = QPixmap()
+        icon_data = self.icons["download"] if self.status_info["is_update_available"] else self.icons["check"]
+        icon_pixmap.loadFromData(icon_data)
+        icon_label.setPixmap(icon_pixmap.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        
+        message_label = QLabel(self.status_info["text"])
+        message_label.setObjectName("updateDialogMessage")
+        message_label.setFont(self.fonts["main"])
+        message_label.setWordWrap(True)
+        
+        info_layout.addWidget(icon_label)
+        info_layout.addWidget(message_label, 1)
+
+        button_layout = QHBoxLayout()
+        self.update_button = AnimatedButton("Update")
+        self.update_button.setObjectName("updateButton")
+        self.update_button.setFont(self.fonts["main"])
+        self.update_button.setVisible(self.status_info["is_update_available"])
+        self.update_button.clicked.connect(self.update_requested.emit)
+        
+        close_button = AnimatedButton("Close")
+        close_button.setObjectName("closeButton")
+        close_button.setFont(self.fonts["main"])
+        close_button.clicked.connect(self.close)
+
+        button_layout.addStretch()
+        button_layout.addWidget(self.update_button)
+        button_layout.addWidget(close_button)
+
+        main_layout.addWidget(title_label)
+        main_layout.addLayout(info_layout)
+        main_layout.addStretch()
+        main_layout.addLayout(button_layout)
+        
+        outer_layout = QVBoxLayout(self)
+        outer_layout.addWidget(container)
+        self.set_styles()
+
+    def set_styles(self):
+        accent = self.parent().current_accent_color if self.parent() else "#1DB954"
+        self.setStyleSheet(f"""
+            #updateDialogContainer {{
+                background-color: #282a36;
+                border-radius: 10px;
+                border: 1px solid #44475a;
+            }}
+            #updateDialogTitle {{
+                color: #f8f8f2;
+            }}
+            #updateDialogMessage {{
+                color: #bd93f9;
+            }}
+            QPushButton {{ outline: none; }}
+            #updateButton, #closeButton {{
+                color: #f8f8f2;
+                padding: 8px 16px;
+                border-radius: 5px;
+            }}
+            #updateButton {{
+                background-color: {accent};
+            }}
+            #closeButton {{
+                background-color: #6272a4;
+            }}
+        """)
+
+
+class UpdateCheckWorker(QThread):
+    update_found = Signal(str, str)
+    up_to_date = Signal()
+    error_occurred = Signal(str)
+
+    def run(self):
+        try:
+            response = requests.get(API_URL, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            latest_version_tag = data['tag_name']
+            if latest_version_tag.lower() != APP_VERSION.lower():
+                release_notes = data['body']
+                self.update_found.emit(latest_version_tag, release_notes)
+            else:
+                self.up_to_date.emit()
+        except requests.exceptions.RequestException as e:
+            self.error_occurred.emit(f"Network error while checking for updates: {e}")
+        except Exception as e:
+            self.error_occurred.emit(f"An error occurred while checking for updates: {e}")
 
 class ModSearchWorker(QThread):
     finished = Signal(list)
@@ -33,9 +182,9 @@ class ModSearchWorker(QThread):
         self.sort_option = sort_option
 
     def run(self):
-        logging.info(f"Начинаю поиск модов: query='{self.query}', version='{self.game_version}', loader='{self.loader}', sort='{self.sort_option}'")
+        logging.info(f"Starting mod search: query='{self.query}', version='{self.game_version}', loader='{self.loader}', sort='{self.sort_option}'")
         results = mod_manager.search_mods(self.query, self.game_version, self.loader, self.sort_option)
-        logging.info(f"Поиск модов завершен, найдено {len(results)} результатов.")
+        logging.info(f"Mod search finished, found {len(results)} results.")
         self.finished.emit(results)
 
 
@@ -51,60 +200,60 @@ class ModDownloadWorker(QThread):
         self.loader = loader
         self.minecraft_dir = minecraft_dir
         self.is_running = True
-        logging.info(f"[Worker {self.project_id}] Поток создан.")
+        logging.info(f"[Worker {self.project_id}] Thread created.")
 
     def run(self):
         try:
-            logging.info(f"[Worker {self.project_id}] Поток запущен. Начинаю загрузку.")
+            logging.info(f"[Worker {self.project_id}] Thread started. Beginning download.")
             self.progress.emit(self.project_id, 0)
 
-            logging.info(f"[Worker {self.project_id}] Получаю информацию о версии мода...")
+            logging.info(f"[Worker {self.project_id}] Getting mod version info...")
             version_info = mod_manager.get_latest_mod_version(self.project_id, self.game_version, self.loader)
             if not version_info or not version_info.get("files"):
-                logging.error(f"[Worker {self.project_id}] Не удалось найти совместимый файл.")
-                self.finished.emit(self.project_id, False, f"Ошибка для {self.project_id}: не удалось найти совместимый файл.")
+                logging.error(f"[Worker {self.project_id}] Could not find a compatible file.")
+                self.finished.emit(self.project_id, False, f"Error for {self.project_id}: could not find a compatible file.")
                 return
 
-            logging.info(f"[Worker {self.project_id}] Информация о версии получена. Ищу основной файл.")
+            logging.info(f"[Worker {self.project_id}] Version info retrieved. Finding primary file.")
             files = version_info.get("files", [])
             primary_file = next((f for f in files if f.get("primary")), files[0] if files else None)
 
             if not primary_file:
-                logging.error(f"[Worker {self.project_id}] В манифесте версии не найдено файлов для скачивания.")
-                self.finished.emit(self.project_id, False, f"Ошибка для {self.project_id}: не найдено файлов для скачивания.")
+                logging.error(f"[Worker {self.project_id}] No files found in version manifest for download.")
+                self.finished.emit(self.project_id, False, f"Error for {self.project_id}: no files found for download.")
                 return
 
             file_url = primary_file["url"]
             file_name = primary_file["filename"]
             mods_folder = os.path.join(self.minecraft_dir, "mods")
-            logging.info(f"[Worker {self.project_id}] Начинаю скачивание файла '{file_name}' из '{file_url}'")
+            logging.info(f"[Worker {self.project_id}] Starting download of file '{file_name}' from '{file_url}'")
 
             def progress_handler(p):
                 if self.is_running:
                     self.progress.emit(self.project_id, p)
 
             success = mod_manager.download_file(file_url, mods_folder, file_name, progress_handler)
-            logging.info(f"[Worker {self.project_id}] Скачивание файла завершено со статусом: {success}")
+            logging.info(f"[Worker {self.project_id}] File download finished with status: {success}")
 
             if success and self.is_running:
                 file_info = {"filename": file_name, "url": file_url, "project_id": self.project_id}
                 self.mod_info_signal.emit(self.project_id, file_info)
-                self.finished.emit(self.project_id, True, f"Успешно скачан {file_name}")
+                self.finished.emit(self.project_id, True, f"Successfully downloaded {file_name}")
             elif not self.is_running:
-                self.finished.emit(self.project_id, False, f"Загрузка {file_name} отменена.")
+                self.finished.emit(self.project_id, False, f"Download of {file_name} was cancelled.")
             else:
-                self.finished.emit(self.project_id, False, f"Не удалось скачать {file_name}.")
+                self.finished.emit(self.project_id, False, f"Failed to download {file_name}.")
 
         except Exception as e:
-            logging.critical(f"[Worker {self.project_id}] В потоке произошло необработанное исключение.", exc_info=True)
-            self.finished.emit(self.project_id, False, f"Критическая ошибка в потоке: {e}")
+            logging.critical(f"[Worker {self.project_id}] An unhandled exception occurred in the thread.", exc_info=True)
+            self.finished.emit(self.project_id, False, f"Critical error in thread: {e}")
         finally:
             if self.is_running:
                 self.progress.emit(self.project_id, 101)
-            logging.info(f"[Worker {self.project_id}] Поток завершает работу.")
+            logging.info(f"[Worker {self.project_id}] Thread is finishing.")
 
     def stop(self):
-        logging.info(f"[Worker {self.project_id}] Получена команда на остановку потока.")
+        logging.info(f"[Worker {self.project_id}] Received stop command for thread.")
         self.is_running = False
 
 
@@ -114,12 +263,17 @@ class MinecraftLauncher(QWidget):
         self.worker = None
         self.version_loader = None
         self.mod_search_worker = None
+        self.update_check_worker = None
         self.mod_download_workers = {}
         self.mod_list_item_map = {}
+        self.updater_path = None
+        self.latest_version_info = None
+        
+        self.update_status_info = {"text": "Checking for updates...", "is_update_available": False}
 
         self.settings = settings.load_settings()
 
-        self.current_language = self.settings.get("language", "ru")
+        self.current_language = self.settings.get("language", "en") # Default to English
         self.current_accent_color = self.settings.get("accent_color", "#1DB954")
         self.current_version_type = self.settings.get("version_type", "vanilla")
 
@@ -132,6 +286,9 @@ class MinecraftLauncher(QWidget):
         self.init_ui()
 
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
+
+        self.prepare_updater()
+        self.check_for_updates()
 
         self.old_pos = None
         self.setWindowOpacity(0)
@@ -151,7 +308,7 @@ class MinecraftLauncher(QWidget):
             self.title_font = QFont(font_families[0], 28, QFont.Bold)
             self.subtitle_font = QFont(font_families[0], 14)
         else:
-            logging.warning("Шрифт не найден. Используется шрифт по умолчанию.")
+            logging.warning("Font not found. Using default font.")
             self.minecraft_font = QFont("Arial", 10)
             self.title_font = QFont("Arial", 24, QFont.Bold)
             self.subtitle_font = QFont("Arial", 12)
@@ -193,10 +350,24 @@ class MinecraftLauncher(QWidget):
         self.create_title_bar(main_layout)
 
         content_layout = QHBoxLayout()
-        content_layout.setContentsMargins(20, 10, 20, 20)
+        content_layout.setContentsMargins(20, 10, 20, 10)
         self.create_main_panel(content_layout)
         self.create_tabs_panel(content_layout)
         main_layout.addLayout(content_layout)
+
+        bottom_bar_layout = QHBoxLayout()
+        bottom_bar_layout.setContentsMargins(0, 0, 20, 5)
+        bottom_bar_layout.addStretch()
+        
+        self.version_status_label = QLabel(f"{APP_VERSION}")
+        self.version_status_label.setObjectName("versionStatusLabel")
+        self.version_status_label.setFont(self.minecraft_font)
+        self.version_status_label.setCursor(Qt.PointingHandCursor)
+        self.version_status_label.mousePressEvent = self.show_update_dialog
+        self.update_version_display()
+        bottom_bar_layout.addWidget(self.version_status_label)
+        
+        main_layout.addLayout(bottom_bar_layout)
 
         outer_layout = QVBoxLayout(self)
         outer_layout.addWidget(self.container)
@@ -357,8 +528,8 @@ class MinecraftLauncher(QWidget):
         self.lang_label = QLabel()
         self.lang_label.setFont(self.subtitle_font)
         self.language_combo = QComboBox()
-        self.language_combo.addItems(["Русский", "English"])
-        self.language_combo.setCurrentIndex(0 if self.current_language == "ru" else 1)
+        self.language_combo.addItems(["English", "Русский"])
+        self.language_combo.setCurrentIndex(0 if self.current_language == "en" else 1)
         self.language_combo.currentTextChanged.connect(self.change_language)
 
         self.accent_color_label = QLabel()
@@ -537,6 +708,93 @@ class MinecraftLauncher(QWidget):
         console_layout.addWidget(self.console_output)
         self.tab_widget.addTab(console_widget, self.console_icon, "")
 
+    def prepare_updater(self):
+        try:
+            docs_path = Path.home() / "Documents" / "Hru Hru Studio" / "Hru Hru Launcher"
+            docs_path.mkdir(parents=True, exist_ok=True)
+            self.updater_path = docs_path / "updater.exe"
+
+            if not getattr(sys, 'frozen', False):
+                logging.warning("Updater preparation skipped: not running from a compiled executable.")
+                return
+
+            temp_updater_path = os.path.join(sys._MEIPASS, "updater.exe")
+            
+            shutil.copy2(temp_updater_path, self.updater_path)
+            logging.info(f"Updater prepared at {self.updater_path}")
+
+        except Exception as e:
+            logging.error(f"Failed to prepare updater: {e}")
+            QMessageBox.critical(self, "Updater Error", f"Failed to prepare the update component:\n{e}")
+
+    def check_for_updates(self):
+        self.update_check_worker = UpdateCheckWorker()
+        self.update_check_worker.update_found.connect(self.on_update_found)
+        self.update_check_worker.up_to_date.connect(self.on_up_to_date)
+        self.update_check_worker.error_occurred.connect(self.on_update_error)
+        self.update_check_worker.start()
+
+    def update_version_display(self):
+        if self.update_status_info["is_update_available"]:
+            self.version_status_label.setStyleSheet("color: #ff5555;")
+        else:
+            self.version_status_label.setStyleSheet("color: #50fa7b;")
+
+    def show_update_dialog(self, event):
+        fonts = {"main": self.minecraft_font, "subtitle": self.subtitle_font}
+        dialog = UpdateDialog(self.update_status_info, fonts, self)
+        dialog.update_requested.connect(self.start_update_process)
+        dialog.exec()
+
+    def start_update_process(self):
+        if not self.latest_version_info:
+            return
+
+        version = self.latest_version_info["version"]
+        try:
+            if not self.updater_path or not self.updater_path.exists():
+                raise FileNotFoundError("updater.exe not found. Please try restarting the launcher.")
+
+            download_url = DOWNLOAD_URL_TEMPLATE.format(tag=version, filename="HruHruLauncher.exe")
+            main_app_path = sys.executable
+            
+            font_path = os.path.join(get_assets_dir(), "Minecraftia.ttf")
+
+            creation_flags = subprocess.DETACHED_PROCESS if sys.platform == 'win32' else 0
+            subprocess.Popen([str(self.updater_path), download_url, main_app_path, font_path], creationflags=creation_flags)
+            
+            sys.exit(0)
+
+        except Exception as e:
+            self.on_update_error(f"Failed to start updater: {e}")
+            QMessageBox.critical(self, "Updater Error", f"Failed to start the updater:\n{e}")
+
+    def on_update_found(self, version, notes):
+        self.latest_version_info = {"version": version, "notes": notes}
+        self.update_status_info = {
+            "text": f"Update available: {version}",
+            "is_update_available": True
+        }
+        self.update_version_display()
+
+    def on_up_to_date(self):
+        self.latest_version_info = None
+        self.update_status_info = {
+            "text": "You have the latest version",
+            "is_update_available": False
+        }
+        self.update_version_display()
+
+    def on_update_error(self, error_text):
+        logging.error(f"Update error: {error_text}")
+        self.latest_version_info = None
+        self.update_status_info = {
+            "text": "Error checking for updates",
+            "is_update_available": False 
+        }
+        self.update_version_display()
+        self.version_status_label.setStyleSheet("color: #aaa;")
+
     def open_folder(self, subfolder_name):
         folder_path = os.path.join(self.minecraft_directory, subfolder_name)
         os.makedirs(folder_path, exist_ok=True)
@@ -550,7 +808,7 @@ class MinecraftLauncher(QWidget):
 
     def open_color_picker(self):
         initial_color = QColor(self.current_accent_color)
-        color = QColorDialog.getColor(initial_color, self, "Выберите акцентный цвет")
+        color = QColorDialog.getColor(initial_color, self, "Select Accent Color")
         if color.isValid():
             self.current_accent_color = color.name()
             self.update_color_preview()
@@ -582,7 +840,7 @@ class MinecraftLauncher(QWidget):
         settings.save_settings(current_settings)
 
     def change_language(self, language_text):
-        self.current_language = "ru" if language_text == "Русский" else "en"
+        self.current_language = "en" if language_text == "English" else "ru"
         self.update_ui_text()
 
     def change_version_type(self, type_id):
@@ -624,25 +882,24 @@ class MinecraftLauncher(QWidget):
         self.open_mods_folder_button.setToolTip(lang["open_mods_folder"])
         self.open_modpacks_folder_button.setToolTip(lang["open_modpacks_folder"])
         self.modpacks_tab_label.setText(lang["wip_notice"])
-
         self.mod_search_input.setPlaceholderText(lang["search_mods_placeholder"])
         self.mod_sort_label.setText(lang["sort_by"])
         self.mod_refresh_button.setText(lang["refresh"])
-
         self.mod_sort_combo.clear()
         self.mod_sort_combo.addItem(lang["downloads"], "downloads")
         self.mod_sort_combo.addItem(lang["relevance"], "relevance")
         self.mod_sort_combo.addItem(lang["newest"], "newest")
-
         for i in range(self.tab_widget.count()):
             tab = self.tab_widget.widget(i)
-            if hasattr(tab, 'objectName') and tab.objectName() in ["news", "vpn"]:
+            if hasattr(tab, 'objectName') and tab.objectName() in ["news", "vpn", "modpacks"]:
                 wip_label = tab.findChild(QLabel, "wipLabel")
                 if wip_label:
                     wip_label.setText(lang["wip_notice"])
                     
     def apply_theme(self):
-        self.setStyleSheet(themes.get_dark_theme(accent_color=self.current_accent_color))
+        base_style = themes.get_dark_theme(accent_color=self.current_accent_color)
+        custom_style = "QPushButton { outline: none; }"
+        self.setStyleSheet(base_style + custom_style)
         self.update_title_glow()
 
     @staticmethod
@@ -744,10 +1001,10 @@ class MinecraftLauncher(QWidget):
 
     def on_version_load_error(self, error_msg):
         self.version_combo.clear()
-        self.version_combo.addItem("Ошибка загрузки версий")
-        self.error_label.setText(f"Не удалось загрузить список версий: {error_msg}")
+        self.version_combo.addItem("Error loading versions")
+        self.error_label.setText(f"Failed to load version list: {error_msg}")
         self.error_label.setVisible(True)
-        self.log_to_console(f"Не удалось загрузить список версий: {error_msg}")
+        self.log_to_console(f"Failed to load version list: {error_msg}")
 
     def update_mod_list(self):
         query = self.mod_search_input.text()
@@ -755,7 +1012,7 @@ class MinecraftLauncher(QWidget):
 
         game_version_full = self.version_combo.currentData(Qt.UserRole)
         if not game_version_full:
-            self.log_to_console("Для поиска модов выберите версию игры.")
+            self.log_to_console("Select a game version to search for mods.")
             return
 
         game_version = game_version_full.split('-')[0]
@@ -769,11 +1026,14 @@ class MinecraftLauncher(QWidget):
             return
 
         if self.mod_search_worker and self.mod_search_worker.isRunning():
-            self.mod_search_worker.terminate()
+            try:
+                self.mod_search_worker.finished.disconnect(self.on_mod_search_finished)
+            except (TypeError, RuntimeError):
+                pass
         
         sort_option = self.mod_sort_combo.currentData()
         if not sort_option:
-             sort_option = "downloads"
+            sort_option = "downloads"
 
         self.mod_refresh_button.setEnabled(False)
         self.mod_results_list.clear()
@@ -823,24 +1083,24 @@ class MinecraftLauncher(QWidget):
 
     def start_mod_download(self, mod_data):
         project_id = mod_data.get("project_id")
-        logging.info(f"Получен запрос на установку мода: project_id='{project_id}', title='{mod_data.get('title')}'")
+        logging.info(f"Received request to install mod: project_id='{project_id}', title='{mod_data.get('title')}'")
 
         if project_id in self.mod_download_workers and self.mod_download_workers[project_id].isRunning():
-            logging.warning(f"Загрузка для project_id='{project_id}' уже идет.")
+            logging.warning(f"Download for project_id='{project_id}' is already in progress.")
             return
 
-        self.log_to_console(f"Начинаю процесс загрузки для '{mod_data.get('title')}'...")
-        logging.info(f"Начинаю процесс загрузки для '{mod_data.get('title')}'...")
+        self.log_to_console(f"Starting download process for '{mod_data.get('title')}'...")
+        logging.info(f"Starting download process for '{mod_data.get('title')}'...")
 
         game_version_full = self.version_combo.currentData(Qt.UserRole)
         if not game_version_full:
-            self.log_to_console("Ошибка: не выбрана версия игры.")
-            logging.error("Не удалось начать загрузку: не выбрана версия игры.")
+            self.log_to_console("Error: no game version selected.")
+            logging.error("Failed to start download: no game version selected.")
             return
             
         game_version = game_version_full.split('-')[0]
         loader = self.current_version_type
-        logging.info(f"Параметры для загрузки: version='{game_version}', loader='{loader}'")
+        logging.info(f"Parameters for download: version='{game_version}', loader='{loader}'")
 
         worker = ModDownloadWorker(project_id, game_version, loader, self.minecraft_directory, self)
         
@@ -851,7 +1111,7 @@ class MinecraftLauncher(QWidget):
 
         self.mod_download_workers[project_id] = worker
         worker.start()
-        logging.info(f"Поток для загрузки project_id='{project_id}' успешно запущен.")
+        logging.info(f"Thread for download project_id='{project_id}' started successfully.")
 
     def on_mod_download_progress(self, project_id, percentage):
         if project_id in self.mod_list_item_map:
@@ -861,10 +1121,10 @@ class MinecraftLauncher(QWidget):
             else:
                 card_widget.update_view(is_installing=True, progress=percentage)
         else:
-            logging.warning(f"Получен прогресс для project_id='{project_id}', но виджет не найден в mod_list_item_map.")
+            logging.warning(f"Received progress for project_id='{project_id}', but widget not found in mod_list_item_map.")
 
     def on_mod_download_finished(self, project_id, success, message):
-        logging.info(f"Получен сигнал finished для project_id='{project_id}', success={success}, message='{message}'")
+        logging.info(f"Received 'finished' signal for project_id='{project_id}', success={success}, message='{message}'")
         self.log_to_console(message)
 
         if project_id in self.mod_download_workers:
@@ -876,7 +1136,7 @@ class MinecraftLauncher(QWidget):
                 card_widget.is_installed = True
             card_widget.update_view()
         else:
-            logging.warning(f"Загрузка для project_id='{project_id}' завершена, но виджет не найден в mod_list_item_map.")
+            logging.warning(f"Download for project_id='{project_id}' finished, but widget not found in mod_list_item_map.")
 
     def open_mod_page(self, mod_data):
         project_slug = mod_data.get("slug")
@@ -890,8 +1150,8 @@ class MinecraftLauncher(QWidget):
                 with open(self.installed_mods_path, 'r', encoding='utf-8') as f:
                     return json.load(f)
         except (IOError, json.JSONDecodeError) as e:
-            self.log_to_console(f"Ошибка чтения installed_mods.json: {e}")
-            logging.error("Ошибка чтения installed_mods.json", exc_info=True)
+            self.log_to_console(f"Error reading installed_mods.json: {e}")
+            logging.error("Error reading installed_mods.json", exc_info=True)
             return {}
         return {}
 
@@ -901,10 +1161,10 @@ class MinecraftLauncher(QWidget):
         try:
             with open(self.installed_mods_path, 'w', encoding='utf-8') as f:
                 json.dump(installed, f, indent=4)
-            logging.info(f"Информация о моде {project_id} добавлена в installed_mods.json")
+            logging.info(f"Mod info for {project_id} added to installed_mods.json")
         except IOError:
-            self.log_to_console(f"Ошибка сохранения списка установленных модов")
-            logging.error(f"Ошибка записи в installed_mods.json", exc_info=True)
+            self.log_to_console(f"Error saving the list of installed mods")
+            logging.error(f"Error writing to installed_mods.json", exc_info=True)
 
     def remove_installed_mod_info(self, project_id):
         installed = self.get_installed_mods_info()
@@ -913,15 +1173,15 @@ class MinecraftLauncher(QWidget):
             try:
                 with open(self.installed_mods_path, 'w', encoding='utf-8') as f:
                     json.dump(installed, f, indent=4)
-                logging.info(f"Информация о моде {project_id} удалена из installed_mods.json")
+                logging.info(f"Mod info for {project_id} removed from installed_mods.json")
             except IOError:
-                self.log_to_console(f"Ошибка сохранения списка установленных модов")
-                logging.error(f"Ошибка записи в installed_mods.json", exc_info=True)
+                self.log_to_console(f"Error saving the list of installed mods")
+                logging.error(f"Error writing to installed_mods.json", exc_info=True)
 
     def delete_mod(self, mod_data):
         project_id = mod_data.get("project_id")
         installed_mods = self.get_installed_mods_info()
-        logging.info(f"Запрос на удаление мода {project_id}")
+        logging.info(f"Request to delete mod {project_id}")
 
         if project_id in installed_mods:
             file_name = installed_mods[project_id].get("filename")
@@ -930,18 +1190,18 @@ class MinecraftLauncher(QWidget):
                 if os.path.exists(file_path):
                     try:
                         os.remove(file_path)
-                        self.log_to_console(f"Удален файл мода: {file_name}")
-                        logging.info(f"Удален файл мода: {file_path}")
+                        self.log_to_console(f"Deleted mod file: {file_name}")
+                        logging.info(f"Deleted mod file: {file_path}")
                     except OSError:
-                        self.log_to_console(f"Ошибка удаления файла {file_name}")
-                        logging.error(f"Ошибка удаления файла {file_path}", exc_info=True)
+                        self.log_to_console(f"Error deleting file {file_name}")
+                        logging.error(f"Error deleting file {file_path}", exc_info=True)
                 else:
-                    self.log_to_console(f"Файл мода не найден, но запись удалена: {file_name}")
-                    logging.warning(f"Файл мода {file_path} не найден для удаления, но запись будет удалена.")
+                    self.log_to_console(f"Mod file not found, but record is being removed: {file_name}")
+                    logging.warning(f"Mod file {file_path} not found for deletion, but its record will be removed.")
             else:
-                self.log_to_console(f"В записи для мода {mod_data.get('title')} нет имени файла.")
-                logging.warning(f"В installed_mods.json для {project_id} отсутствует 'filename'.")
-                
+                self.log_to_console(f"Record for mod '{mod_data.get('title')}' is missing a filename.")
+                logging.warning(f"'filename' is missing in installed_mods.json for {project_id}.")
+            
             self.remove_installed_mod_info(project_id)
             
             if project_id in self.mod_list_item_map:
@@ -949,8 +1209,8 @@ class MinecraftLauncher(QWidget):
                 card_widget.is_installed = False
                 card_widget.update_view()
         else:
-            self.log_to_console(f"Мод {mod_data.get('title')} не найден в списке установленных.")
-            logging.warning(f"Попытка удаления мода {project_id}, который не числится в installed_mods.json")
+            self.log_to_console(f"Mod '{mod_data.get('title')}' not found in the list of installed mods.")
+            logging.warning(f"Attempted to delete mod {project_id}, which is not listed in installed_mods.json")
 
     def start_minecraft(self):
         if self.worker and self.worker.isRunning():
@@ -1048,7 +1308,7 @@ class MinecraftLauncher(QWidget):
             self.old_pos = event.globalPosition().toPoint()
 
     def stop_all_threads(self):
-        logging.info("Получена команда на остановку всех потоков.")
+        logging.info("Received command to stop all threads.")
         for worker in list(self.mod_download_workers.values()):
             if worker.isRunning():
                 worker.stop()
@@ -1056,15 +1316,15 @@ class MinecraftLauncher(QWidget):
                 worker.wait(500)
         self.mod_download_workers.clear()
         
-        for worker_attr in ['worker', 'version_loader', 'mod_search_worker']:
-            worker = getattr(self, worker_attr)
+        for worker_attr in ['worker', 'version_loader', 'mod_search_worker', 'update_check_worker']:
+            worker = getattr(self, worker_attr, None)
             if worker and worker.isRunning():
                 worker.quit()
                 worker.wait(500)
-        logging.info("Все потоки остановлены.")
+        logging.info("All threads stopped.")
 
     def closeEvent(self, event):
-        logging.info("Приложение закрывается. Сохранение настроек и остановка потоков...")
+        logging.info("Application closing. Saving settings and stopping threads...")
         self.save_settings()
         self.stop_all_threads()
         event.accept()
