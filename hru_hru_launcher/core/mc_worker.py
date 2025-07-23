@@ -2,9 +2,6 @@ import os
 import sys
 import uuid
 import subprocess
-import json
-import urllib.request
-import zipfile
 from datetime import datetime
 
 from PySide6.QtCore import QThread, Signal
@@ -27,7 +24,7 @@ class MinecraftWorker(QThread):
         client_token,
         memory_gb=2,
         fullscreen=False,
-        jvm_args=None,
+        options=None,
         lang="ru",
         mod_loader=None,
     ):
@@ -38,7 +35,7 @@ class MinecraftWorker(QThread):
         self.client_token = client_token
         self.memory_gb = memory_gb
         self.fullscreen = fullscreen
-        self.jvm_args = jvm_args if jvm_args else {}
+        self.options = options if options else {}
         self.lang = lang
         self.mod_loader = mod_loader
 
@@ -66,20 +63,15 @@ class MinecraftWorker(QThread):
                 if self.mod_loader == "forge"
                 else self.mc_version
             )
-            self.log_and_update_status(f"Checking base version: {base_mc_version}")
-            
-            minecraft_launcher_lib.install.install_minecraft_version(
-                base_mc_version, self.minecraft_dir, callback=callback
-            )
 
-            base_version_path = os.path.join(
-                self.minecraft_dir, "versions", base_mc_version
-            )
-            base_json_path = os.path.join(base_version_path, f"{base_mc_version}.json")
-            if not os.path.isfile(base_json_path):
-                raise Exception(
-                    f"Base version {base_mc_version} is not installed correctly (no {base_mc_version}.json)."
+            installed_version_ids = [v["id"] for v in minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)]
+            if base_mc_version not in installed_version_ids:
+                self.log_and_update_status(f"Base version {base_mc_version} not found. Installing...")
+                minecraft_launcher_lib.install.install_minecraft_version(
+                    base_mc_version, self.minecraft_dir, callback=callback
                 )
+            else:
+                self.log_and_update_status(f"Base version {base_mc_version} already installed.")
 
             version_id_to_launch = base_mc_version
             profile_name = base_mc_version
@@ -91,85 +83,86 @@ class MinecraftWorker(QThread):
                     self.log_and_update_status(f"Created 'mods' folder")
 
                 if self.mod_loader == "fabric":
-                    self.log_and_update_status(f"Installing Fabric for {base_mc_version}")
-                    minecraft_launcher_lib.fabric.install_fabric(
-                        base_mc_version, self.minecraft_dir, callback=callback
-                    )
-                    installed_versions = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
-                    fabric_versions = [
-                        v for v in installed_versions
-                        if v["id"].startswith(f"fabric-loader-") and base_mc_version in v["id"]
-                    ]
+                    installed_versions_data = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
+                    fabric_versions = [v for v in installed_versions_data if v["id"].startswith(f"fabric-loader-") and base_mc_version in v["id"]]
+                    
                     if not fabric_versions:
-                        raise Exception(f"Fabric for Minecraft {base_mc_version} not found.")
+                        self.log_and_update_status(f"Installing Fabric for {base_mc_version}")
+                        minecraft_launcher_lib.fabric.install_fabric(
+                            base_mc_version, self.minecraft_dir, callback=callback
+                        )
+                        # Re-check after installation
+                        installed_versions_data_after = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
+                        fabric_versions = [v for v in installed_versions_data_after if v["id"].startswith(f"fabric-loader-") and base_mc_version in v["id"]]
+                        if not fabric_versions:
+                            raise Exception(f"Fabric for Minecraft {base_mc_version} not found after installation.")
+                        self.log_and_update_status(f"Fabric installed: {fabric_versions[0]['id']}")
+                    else:
+                        self.log_and_update_status(f"Found existing Fabric version: {fabric_versions[0]['id']}")
+                    
                     version_id_to_launch = fabric_versions[0]["id"]
                     profile_name = f"{base_mc_version} Fabric"
                 
                 elif self.mod_loader == "forge":
-                    self.log_and_update_status(f"Installing Forge {self.mc_version}")
-                    versions_before = {v["id"] for v in minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)}
-                    
-                    try:
-                        minecraft_launcher_lib.forge.install_forge_version(
-                            self.mc_version, self.minecraft_dir, callback=callback
-                        )
-                    except Exception as forge_install_error:
-                        self.log_message.emit(f"Forge installation failed: {forge_install_error}. Trying to find existing version.")
+                    all_installed = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
+                    version_id_to_launch = self._detect_forge_id(all_installed, base_mc_version)
 
-                    versions_after = {v["id"] for v in minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)}
-                    new_versions = versions_after - versions_before
-
-                    if new_versions:
-                        version_id_to_launch = new_versions.pop()
+                    if not version_id_to_launch:
+                        self.log_and_update_status(f"Installing Forge {self.mc_version}")
+                        try:
+                            minecraft_launcher_lib.forge.install_forge_version(
+                                self.mc_version, self.minecraft_dir, callback=callback
+                            )
+                        except Exception as forge_install_error:
+                            self.log_message.emit(f"Forge installation failed: {forge_install_error}.")
+                            raise forge_install_error # Re-raise the exception to stop the process
+                        
+                        # Re-check after installation
+                        all_installed_after = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
+                        version_id_to_launch = self._detect_forge_id(all_installed_after, base_mc_version)
+                        if not version_id_to_launch:
+                            raise Exception(f"Could not find Forge version for {self.mc_version} after installation.")
                         self.log_and_update_status(f"New Forge version installed: {version_id_to_launch}")
                     else:
-                        all_installed = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
-                        version_id_to_launch = self._detect_forge_id(all_installed, base_mc_version)
-                        if version_id_to_launch:
-                            self.log_and_update_status(f"Found existing Forge version: {version_id_to_launch}")
-                        else:
-                            raise Exception(f"Could not find or install Forge version for {self.mc_version}")
+                        self.log_and_update_status(f"Found existing Forge version: {version_id_to_launch}")
                     
                     profile_name = f"{base_mc_version} Forge"
 
             add_profile(self.minecraft_dir, version_id_to_launch, profile_name)
 
-            all_jvm_args = [f"-Xmx{self.memory_gb}G", f"-Xms{self.memory_gb}G"]
-            if self.jvm_args.get("use_g1gc", False):
-                all_jvm_args.extend([
-                    "-XX:+UseG1GC", "-XX:+ParallelRefProcEnabled", "-XX:MaxGCPauseMillis=200",
-                    "-XX:+UnlockExperimentalVMOptions", "-XX:+DisableExplicitGC", "-XX:+AlwaysPreTouch",
-                    "-XX:G1NewSizePercent=30", "-XX:G1MaxNewSizePercent=40", "-XX:G1HeapRegionSize=8M",
-                    "-XX:G1ReservePercent=20", "-XX:G1HeapWastePercent=5", "-XX:G1MixedGCCountTarget=4",
-                    "-XX:InitiatingHeapOccupancyPercent=15", "-XX:G1MixedGCLiveThresholdPercent=90",
-                    "-XX:G1RSetUpdatingPauseTimePercent=5", "-XX:SurvivorRatio=32",
-                    "-XX:+PerfDisableSharedMem", "-XX:MaxTenuringThreshold=1",
-                ])
+            custom_jvm_args = self.options.get("jvmArguments", [])
+            all_jvm_args = [f"-Xmx{self.memory_gb}G", f"-Xms{self.memory_gb}G"] + custom_jvm_args
 
-            options = {
+            launch_options = {
                 "username": self.username,
                 "uuid": str(uuid.uuid3(uuid.NAMESPACE_DNS, self.username)),
                 "token": "0",
                 "jvmArguments": all_jvm_args,
                 "fullscreen": self.fullscreen,
                 "gameDirectory": self.minecraft_dir,
+                "executablePath": self.options.get("executablePath"),
+                "resolutionWidth": self.options.get("resolutionWidth"),
+                "resolutionHeight": self.options.get("resolutionHeight"),
             }
+            
+            launch_options = {k: v for k, v in launch_options.items() if v}
 
             self.log_and_update_status(LANGUAGES[self.lang]["starting"])
             self.log_message.emit(f"Using Minecraft data directory: {self.minecraft_dir}")
 
             command = minecraft_launcher_lib.command.get_minecraft_command(
-                version_id_to_launch, self.minecraft_dir, options
+                version_id_to_launch, self.minecraft_dir, launch_options
             )
 
-            java_path = command[0]
-            if sys.platform == "win32" and "java.exe" in java_path.lower():
-                javaw_path = java_path.replace("java.exe", "javaw.exe")
-                if os.path.exists(javaw_path):
-                    command[0] = javaw_path
-                    self.log_message.emit(f"Switched to javaw.exe for game launch: {javaw_path}")
-                else:
-                    self.log_message.emit(f"javaw.exe not found at {javaw_path}. Falling back to java.exe.")
+            if not self.options.get("executablePath"):
+                java_path = command[0]
+                if sys.platform == "win32" and "java.exe" in java_path.lower():
+                    javaw_path = java_path.replace("java.exe", "javaw.exe")
+                    if os.path.exists(javaw_path):
+                        command[0] = javaw_path
+                        self.log_message.emit(f"Switched to javaw.exe for game launch: {javaw_path}")
+                    else:
+                        self.log_message.emit(f"javaw.exe not found at {javaw_path}. Falling back to java.exe.")
             
             creationflags = 0
             if sys.platform == "win32":
@@ -183,7 +176,7 @@ class MinecraftWorker(QThread):
                 encoding="utf-8",
                 errors="replace",
                 creationflags=creationflags,
-                cwd=options.get("gameDirectory"),
+                cwd=self.minecraft_dir,
             )
 
             for line in iter(process.stdout.readline, ""):

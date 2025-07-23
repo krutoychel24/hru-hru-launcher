@@ -61,8 +61,6 @@ def get_mod_id_from_jar(jar_path: str):
                     return custom_data.get("modrinth", {}).get("project_id") or data.get('id')
             elif 'META-INF/mods.toml' in jar.namelist():
                 with jar.open('META-INF/mods.toml', 'r') as f:
-                    # tomli.load() ожидает бинарный файл, поэтому используем 'rb'
-                    # Но так как мы уже открыли файл как текстовый, декодируем его
                     data = tomli.loads(f.read().decode('utf-8'))
                     if 'mods' in data and len(data['mods']) > 0:
                         return data['mods'][0].get('modId')

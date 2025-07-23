@@ -10,11 +10,12 @@ from functools import partial
 from pathlib import Path
 
 import requests
-from PySide6.QtCore import (Qt, QThread, Signal, QPropertyAnimation, QEasingCurve, QSize, QPoint, QUrl)
+from PySide6.QtCore import (Qt, QThread, Signal, QPropertyAnimation, QEasingCurve, QSize, QPoint, QUrl, QByteArray)
 from PySide6.QtGui import (QFont, QFontDatabase, QIcon, QPixmap, QColor, QStandardItemModel, QStandardItem, QDesktopServices)
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton,
-                               QProgressBar, QFrame, QCheckBox, QSlider, QTabWidget, QTextEdit,
-                               QButtonGroup, QRadioButton, QGraphicsDropShadowEffect, QColorDialog, QListWidget, QListWidgetItem, QMessageBox, QDialog)
+                                 QProgressBar, QFrame, QCheckBox, QSlider, QTabWidget, QTextEdit,
+                                 QButtonGroup, QRadioButton, QGraphicsDropShadowEffect, QColorDialog, QListWidget, QListWidgetItem, QMessageBox, QDialog,
+                                 QSizeGrip, QFileDialog)
 
 import minecraft_launcher_lib
 
@@ -27,7 +28,7 @@ from ..utils.paths import get_assets_dir
 from ..config import resources, settings
 
 # --- AUTO-UPDATE SETTINGS ---
-APP_VERSION = "v1.1.1-beta"
+APP_VERSION = "v1.1.2-beta"
 API_URL = "https://api.github.com/repos/krutoychel24/hru-hru-launcher/releases/latest"
 DOWNLOAD_URL_TEMPLATE = "https://github.com/krutoychel24/hru-hru-launcher/releases/download/{tag}/{filename}"
 # --- END AUTO-UPDATE SETTINGS ---
@@ -146,6 +147,87 @@ class UpdateDialog(QDialog):
                 background-color: {accent};
             }}
             #closeButton {{
+                background-color: #6272a4;
+            }}
+        """)
+
+class AdvancedSettingsDialog(QDialog):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent_window = parent
+        self.setWindowTitle(resources.LANGUAGES[self.parent_window.current_language].get("advanced_settings", "Advanced Settings"))
+        self.setMinimumWidth(500)
+
+        self.jvm_args_input = QLineEdit(self.parent_window.jvm_args_input.text())
+        self.jvm_args_input.setPlaceholderText("-XX:+UseG1GC -Xmx...G")
+        
+        self.java_path_input = QLineEdit(self.parent_window.java_path_input.text())
+        self.java_path_input.setPlaceholderText("Auto")
+
+        self.init_ui()
+        self.apply_styles()
+
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        jvm_args_label = QLabel(self.parent_window.jvm_args_label.text())
+        jvm_args_label.setFont(self.parent_window.subtitle_font)
+
+        java_path_label = QLabel(self.parent_window.java_path_label.text())
+        java_path_label.setFont(self.parent_window.subtitle_font)
+
+        java_path_button = QPushButton()
+        java_path_button.setIcon(self.parent_window.folder_icon)
+        java_path_button.setFixedSize(36, 36)
+        java_path_button.setIconSize(QSize(24, 24))
+        java_path_button.clicked.connect(self.open_java_path_dialog)
+
+        java_path_layout = QHBoxLayout()
+        java_path_layout.addWidget(self.java_path_input)
+        java_path_layout.addWidget(java_path_button)
+
+        layout.addWidget(jvm_args_label)
+        layout.addWidget(self.jvm_args_input)
+        layout.addSpacing(10)
+        layout.addWidget(java_path_label)
+        layout.addLayout(java_path_layout)
+        layout.addStretch()
+
+        close_button = AnimatedButton(resources.LANGUAGES[self.parent_window.current_language].get("close", "Close"))
+        close_button.setObjectName("closeButton")
+        close_button.setFont(self.parent_window.minecraft_font)
+        close_button.clicked.connect(self.accept)
+
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        button_layout.addWidget(close_button)
+        layout.addLayout(button_layout)
+
+    def accept(self):
+        self.parent_window.jvm_args_input.setText(self.jvm_args_input.text())
+        self.parent_window.java_path_input.setText(self.java_path_input.text())
+        super().accept()
+
+    def open_java_path_dialog(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Java Executable", "", "Executables (java.exe);;All files (*)")
+        if file_path:
+            self.java_path_input.setText(file_path)
+
+    def apply_styles(self):
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: #282a36;
+                border: 1px solid #44475a;
+            }}
+            QLabel {{
+                color: #f8f8f2;
+            }}
+            #closeButton {{
+                color: #f8f8f2;
+                padding: 8px 16px;
+                border-radius: 5px;
                 background-color: #6272a4;
             }}
         """)
@@ -269,11 +351,11 @@ class MinecraftLauncher(QWidget):
         self.updater_path = None
         self.latest_version_info = None
         
-        self.update_status_info = {"text": "Checking for updates...", "is_update_available": False}
+        self.update_status_info = {"text": "Click to check for updates", "is_update_available": False}
 
         self.settings = settings.load_settings()
 
-        self.current_language = self.settings.get("language", "en") # Default to English
+        self.current_language = self.settings.get("language", "en")
         self.current_accent_color = self.settings.get("accent_color", "#1DB954")
         self.current_version_type = self.settings.get("version_type", "vanilla")
 
@@ -288,7 +370,7 @@ class MinecraftLauncher(QWidget):
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
 
         self.prepare_updater()
-        self.check_for_updates()
+        self.update_version_display()
 
         self.old_pos = None
         self.setWindowOpacity(0)
@@ -329,6 +411,8 @@ class MinecraftLauncher(QWidget):
         self.modpacks_icon = create_icon(resources.MODPACKS_ICON_SVG)
         self.vpn_icon = create_icon(resources.VPN_ICON_SVG)
         self.installed_icon = create_icon(resources.INSTALLED_ICON_SVG)
+        self.folder_icon = create_icon(base64.b64decode("PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iI2Y4ZjhmMiIgdmlld0JveD0iMCAwIDI1NiAyNTYiPjxwYXRoIGQ9Ik0yMjQsODhINzJBNzEuNzYsNzEuNzYsMCwwLDAsMTYsMTUyVjE4NGE4LDgsMCwwLDAsOCw4SDIyNGE4LDgsMCwwLDAsOC04Vjk2QTgsOCwwLDAsMCwyMjQsODhaTTQ4LDE1MkEyMy44MiwyMy44MiwwLDAsMSw3MiwxMjhoMTQ0djI0SDcyQTI0LDI0LDAsMCwxLDQ4LDE1MlpNMjE2LDEwNEgxODguMzhhNDAsNDAsMCwwLDAtNzYuNzYsMEg3MkEyMy44MiwyMy44MiwwLDAsMSw0OCwxMjguMzlWMTI4YTU1Ljc1LDU1Ljc1LDAsMCwxLC43Ny05LjA4bDEzLjE0LTQ4LjYyQTgsOCwwLDAsMSw3MCw2NEgyMDhhOCw4LDAsMCwxLDcuMSw0LjYzbDE4LjgxLDQ3QzIzOS40MSwxMjEuMjgsMjMyLDEyOCwyMjQsMTI4YTcuNzgsNy43OCwwLDAsMC0yLjE4LS4yN1YxMDRaIj48L3BhdGg+PC9zdmc+"))
+        
 
         assets_dir = get_assets_dir()
         icon_path = os.path.join(assets_dir, "launcher-icon.ico")
@@ -337,9 +421,17 @@ class MinecraftLauncher(QWidget):
 
     def init_ui(self):
         self.setWindowTitle("Hru Hru Launcher")
-        self.setFixedSize(1280, 800)
+        self.resize(1280, 800)
+        self.setMinimumSize(960, 600)
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
+        
+        if 'window_geometry' in self.settings:
+            try:
+                geom_data = self.settings['window_geometry'].encode('utf-8')
+                self.restoreGeometry(QByteArray.fromBase64(QByteArray(geom_data)))
+            except Exception as e:
+                logging.error(f"Failed to restore window geometry: {e}")
 
         self.container = QWidget(self)
         self.container.setObjectName("container")
@@ -356,17 +448,20 @@ class MinecraftLauncher(QWidget):
         main_layout.addLayout(content_layout)
 
         bottom_bar_layout = QHBoxLayout()
-        bottom_bar_layout.setContentsMargins(0, 0, 20, 5)
+        bottom_bar_layout.setContentsMargins(0, 0, 5, 5)
         bottom_bar_layout.addStretch()
         
         self.version_status_label = QLabel(f"{APP_VERSION}")
         self.version_status_label.setObjectName("versionStatusLabel")
         self.version_status_label.setFont(self.minecraft_font)
         self.version_status_label.setCursor(Qt.PointingHandCursor)
-        self.version_status_label.mousePressEvent = self.show_update_dialog
+        self.version_status_label.mousePressEvent = lambda event: self.check_for_updates(manual=True)
         self.update_version_display()
         bottom_bar_layout.addWidget(self.version_status_label)
         
+        size_grip = QSizeGrip(self)
+        bottom_bar_layout.addWidget(size_grip, 0, Qt.AlignBottom | Qt.AlignRight)
+
         main_layout.addLayout(bottom_bar_layout)
 
         outer_layout = QVBoxLayout(self)
@@ -525,6 +620,16 @@ class MinecraftLauncher(QWidget):
         settings_layout.setContentsMargins(20, 20, 20, 20)
         settings_layout.setSpacing(15)
 
+        # --- Создаём виджеты для расширенных настроек, но не добавляем их в layout ---
+        self.jvm_args_label = QLabel()
+        self.jvm_args_label.setFont(self.subtitle_font)
+        self.jvm_args_input = QLineEdit(self.settings.get("jvm_args", ""))
+        
+        self.java_path_label = QLabel()
+        self.java_path_label.setFont(self.subtitle_font)
+        self.java_path_input = QLineEdit(self.settings.get("java_path", ""))
+        # --- Конец создания виджетов ---
+
         self.lang_label = QLabel()
         self.lang_label.setFont(self.subtitle_font)
         self.language_combo = QComboBox()
@@ -560,6 +665,17 @@ class MinecraftLauncher(QWidget):
         self.memory_feedback_label = QLabel()
         self.memory_feedback_label.setAlignment(Qt.AlignCenter)
         self.update_memory_feedback(self.memory_slider.value())
+        
+        self.resolution_label = QLabel()
+        self.resolution_label.setFont(self.subtitle_font)
+        resolution_layout = QHBoxLayout()
+        self.resolution_width_input = QLineEdit(self.settings.get("resolution_width", "1280"))
+        self.resolution_width_input.setPlaceholderText("Width")
+        self.resolution_height_input = QLineEdit(self.settings.get("resolution_height", "720"))
+        self.resolution_height_input.setPlaceholderText("Height")
+        resolution_layout.addWidget(self.resolution_width_input)
+        resolution_layout.addWidget(QLabel("x"))
+        resolution_layout.addWidget(self.resolution_height_input)
 
         self.fullscreen_checkbox = QCheckBox()
         self.fullscreen_checkbox.setChecked(self.settings.get("fullscreen", False))
@@ -567,20 +683,9 @@ class MinecraftLauncher(QWidget):
         self.close_launcher_checkbox.setChecked(self.settings.get("close_launcher", True))
 
         self.advanced_settings_button = QPushButton()
-        self.advanced_settings_button.setCheckable(True)
-        self.advanced_settings_button.toggled.connect(self.toggle_advanced_settings)
-
-        self.advanced_settings_frame = QFrame()
-        self.advanced_settings_frame.setObjectName("advancedFrame")
-        self.advanced_settings_frame.setVisible(False)
-        advanced_layout = QVBoxLayout(self.advanced_settings_frame)
-        self.jvm_args_label = QLabel()
-        self.jvm_args_label.setFont(self.subtitle_font)
-        self.g1gc_checkbox = QCheckBox()
-        self.g1gc_checkbox.setChecked(self.settings.get("use_g1gc", False))
-        advanced_layout.addWidget(self.jvm_args_label)
-        advanced_layout.addWidget(self.g1gc_checkbox)
-
+        self.advanced_settings_button.setCheckable(False)
+        self.advanced_settings_button.clicked.connect(self.open_advanced_settings)
+        
         settings_layout.addWidget(self.lang_label)
         settings_layout.addWidget(self.language_combo)
         settings_layout.addSpacing(10)
@@ -594,11 +699,15 @@ class MinecraftLauncher(QWidget):
         settings_layout.addLayout(memory_layout)
         settings_layout.addWidget(self.memory_feedback_label)
         settings_layout.addSpacing(10)
+        settings_layout.addWidget(self.resolution_label)
+        settings_layout.addLayout(resolution_layout)
+        settings_layout.addSpacing(10)
         settings_layout.addWidget(self.fullscreen_checkbox)
         settings_layout.addWidget(self.close_launcher_checkbox)
+        
         settings_layout.addStretch()
         settings_layout.addWidget(self.advanced_settings_button)
-        settings_layout.addWidget(self.advanced_settings_frame)
+        
         self.tab_widget.addTab(settings_widget, self.settings_icon, "")
 
     def create_placeholder_tab(self, icon, tab_name):
@@ -727,20 +836,32 @@ class MinecraftLauncher(QWidget):
             logging.error(f"Failed to prepare updater: {e}")
             QMessageBox.critical(self, "Updater Error", f"Failed to prepare the update component:\n{e}")
 
-    def check_for_updates(self):
+    def check_for_updates(self, manual=False):
+        if manual:
+            self.update_status_info["text"] = "Checking for updates..."
+            self.update_version_display()
+
         self.update_check_worker = UpdateCheckWorker()
-        self.update_check_worker.update_found.connect(self.on_update_found)
-        self.update_check_worker.up_to_date.connect(self.on_up_to_date)
-        self.update_check_worker.error_occurred.connect(self.on_update_error)
+        self.update_check_worker.update_found.connect(lambda v, n: self.on_update_found(v, n, manual))
+        self.update_check_worker.up_to_date.connect(lambda: self.on_up_to_date(manual))
+        self.update_check_worker.error_occurred.connect(lambda e: self.on_update_error(e, manual))
         self.update_check_worker.start()
 
     def update_version_display(self):
         if self.update_status_info["is_update_available"]:
             self.version_status_label.setStyleSheet("color: #ff5555;")
+        elif "Error" in self.update_status_info["text"]:
+            self.version_status_label.setStyleSheet("color: #aaa;")
+        elif "Checking" in self.update_status_info["text"]:
+            self.version_status_label.setStyleSheet("color: #f1fa8c;")
         else:
             self.version_status_label.setStyleSheet("color: #50fa7b;")
 
-    def show_update_dialog(self, event):
+    def show_update_dialog(self, event=None):
+        if not self.update_check_worker or not self.update_check_worker.isRunning():
+            self.check_for_updates(manual=True)
+            return
+
         fonts = {"main": self.minecraft_font, "subtitle": self.subtitle_font}
         dialog = UpdateDialog(self.update_status_info, fonts, self)
         dialog.update_requested.connect(self.start_update_process)
@@ -766,26 +887,28 @@ class MinecraftLauncher(QWidget):
             sys.exit(0)
 
         except Exception as e:
-            self.on_update_error(f"Failed to start updater: {e}")
+            self.on_update_error(f"Failed to start updater: {e}", manual=True)
             QMessageBox.critical(self, "Updater Error", f"Failed to start the updater:\n{e}")
 
-    def on_update_found(self, version, notes):
+    def on_update_found(self, version, notes, manual):
         self.latest_version_info = {"version": version, "notes": notes}
         self.update_status_info = {
             "text": f"Update available: {version}",
             "is_update_available": True
         }
         self.update_version_display()
+        if manual: self.show_update_dialog()
 
-    def on_up_to_date(self):
+    def on_up_to_date(self, manual):
         self.latest_version_info = None
         self.update_status_info = {
             "text": "You have the latest version",
             "is_update_available": False
         }
         self.update_version_display()
+        if manual: self.show_update_dialog()
 
-    def on_update_error(self, error_text):
+    def on_update_error(self, error_text, manual):
         logging.error(f"Update error: {error_text}")
         self.latest_version_info = None
         self.update_status_info = {
@@ -793,7 +916,7 @@ class MinecraftLauncher(QWidget):
             "is_update_available": False 
         }
         self.update_version_display()
-        self.version_status_label.setStyleSheet("color: #aaa;")
+        if manual: self.show_update_dialog()
 
     def open_folder(self, subfolder_name):
         folder_path = os.path.join(self.minecraft_directory, subfolder_name)
@@ -813,6 +936,11 @@ class MinecraftLauncher(QWidget):
             self.current_accent_color = color.name()
             self.update_color_preview()
             self.apply_theme()
+            
+    def open_java_path_dialog(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select Java Executable", "", "Executables (java.exe);;All files (*)")
+        if file_path:
+            self.java_path_input.setText(file_path)
 
     def update_color_preview(self):
         self.color_preview.setStyleSheet(f"background-color: {self.current_accent_color}; border: 2px solid #555555; border-radius: 8px;")
@@ -822,17 +950,23 @@ class MinecraftLauncher(QWidget):
         self.title_label.setGraphicsEffect(self.glow_effect)
 
     def save_settings(self):
+        self.settings['window_geometry'] = self.saveGeometry().toBase64().data().decode('utf-8')
+
         current_settings = {
             "language": self.current_language,
             "memory": self.memory_slider.value(),
             "fullscreen": self.fullscreen_checkbox.isChecked(),
             "close_launcher": self.close_launcher_checkbox.isChecked(),
             "last_username": self.user_input.text(),
-            "use_g1gc": self.g1gc_checkbox.isChecked(),
+            "jvm_args": self.jvm_args_input.text(),
+            "java_path": self.java_path_input.text(),
+            "resolution_width": self.resolution_width_input.text(),
+            "resolution_height": self.resolution_height_input.text(),
             "version_type": self.current_version_type,
             "last_version": self.version_combo.currentData(Qt.UserRole),
             "accent_color": self.current_accent_color,
-            "last_tab": self.tab_widget.currentIndex()
+            "last_tab": self.tab_widget.currentIndex(),
+            "window_geometry": self.settings.get('window_geometry')
         }
         client_token = self.settings.get("clientToken")
         if client_token:
@@ -872,8 +1006,10 @@ class MinecraftLauncher(QWidget):
         self.close_launcher_checkbox.setText(lang["close_launcher"])
         self.clear_console_button.setText(lang["clear_console"])
         self.advanced_settings_button.setText(lang["advanced_settings_show"])
-        self.jvm_args_label.setText(lang["jvm_args"])
-        self.g1gc_checkbox.setText(lang["use_g1gc"])
+        self.resolution_label.setText(lang.get("resolution", "Game Resolution"))
+        self.jvm_args_label.setText(lang.get("jvm_args_custom", "Custom JVM Arguments"))
+        self.java_path_label.setText(lang.get("java_path", "Java Executable Path"))
+        
         self.version_type_label.setText(lang["version_type"])
         self.vanilla_radio.setText(lang["vanilla"])
         self.forge_radio.setText(lang["forge"])
@@ -1007,6 +1143,10 @@ class MinecraftLauncher(QWidget):
         self.log_to_console(f"Failed to load version list: {error_msg}")
 
     def update_mod_list(self):
+        # ✅ ADDED: Защита от "спама" кнопки обновления
+        if self.mod_search_worker and self.mod_search_worker.isRunning():
+            return
+
         query = self.mod_search_input.text()
         lang = resources.LANGUAGES[self.current_language]
 
@@ -1229,7 +1369,15 @@ class MinecraftLauncher(QWidget):
         self.error_label.setVisible(False)
         self.tab_widget.setCurrentIndex(4)
 
-        jvm_args = {"use_g1gc": self.g1gc_checkbox.isChecked()}
+        jvm_args_list = self.jvm_args_input.text().split()
+        
+        options = {
+            "executablePath": self.java_path_input.text() or None,
+            "jvmArguments": jvm_args_list,
+            "resolutionWidth": self.resolution_width_input.text(),
+            "resolutionHeight": self.resolution_height_input.text(),
+        }
+
         selected_version = self.version_combo.currentData(Qt.UserRole)
         mod_loader = self.current_version_type if self.current_version_type != "vanilla" else None
 
@@ -1240,7 +1388,7 @@ class MinecraftLauncher(QWidget):
             client_token=self.settings.get("clientToken"),
             memory_gb=self.memory_slider.value(),
             fullscreen=self.fullscreen_checkbox.isChecked(),
-            jvm_args=jvm_args,
+            options=options,
             lang=self.current_language,
             mod_loader=mod_loader,
         )
@@ -1286,13 +1434,10 @@ class MinecraftLauncher(QWidget):
 
         self.memory_feedback_label.setText(text)
         self.memory_feedback_label.setStyleSheet(f"color: {color}; font-weight: bold;")
-
-    def toggle_advanced_settings(self, checked):
-        lang = resources.LANGUAGES[self.current_language]
-        self.advanced_settings_frame.setVisible(checked)
-        self.advanced_settings_button.setText(
-            lang["advanced_settings_hide"] if checked else lang["advanced_settings_show"]
-        )
+        
+    def open_advanced_settings(self):
+        dialog = AdvancedSettingsDialog(self)
+        dialog.exec()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton and self.title_bar.underMouse():
