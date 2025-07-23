@@ -49,7 +49,7 @@ To set up and run this project locally, follow these steps:
 1.  **Clone the repository** (or download the source code):
     ```bash
     git clone https://github.com/krutoychel24/hru-hru-launcher
-    cd hru-hru-Launcher
+    cd hru-hru-launcher
     ```
 2.  **Create a Virtual Environment** (highly recommended):
     ```bash
