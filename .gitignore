@@ -9,6 +9,7 @@ env/
 HruHruLauncher-Setup.iss
 jdk-installer.exe
 HruHruLauncher-Setup-v1.0.exe
+HruHruLauncher-Setup.exe
 
 build/
 dist/
