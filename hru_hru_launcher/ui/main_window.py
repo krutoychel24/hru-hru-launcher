@@ -13,9 +13,9 @@ import requests
 from PySide6.QtCore import (Qt, QThread, Signal, QPropertyAnimation, QEasingCurve, QSize, QPoint, QUrl, QByteArray)
 from PySide6.QtGui import (QFont, QFontDatabase, QIcon, QPixmap, QColor, QStandardItemModel, QStandardItem, QDesktopServices)
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton,
-                                 QProgressBar, QFrame, QCheckBox, QSlider, QTabWidget, QTextEdit,
-                                 QButtonGroup, QRadioButton, QGraphicsDropShadowEffect, QColorDialog, QListWidget, QListWidgetItem, QMessageBox, QDialog,
-                                 QSizeGrip, QFileDialog)
+                               QProgressBar, QFrame, QCheckBox, QSlider, QTabWidget, QTextEdit,
+                               QButtonGroup, QRadioButton, QGraphicsDropShadowEffect, QColorDialog, QListWidget, QListWidgetItem, QMessageBox, QDialog,
+                               QSizeGrip, QFileDialog)
 
 import minecraft_launcher_lib
 
@@ -32,6 +32,126 @@ APP_VERSION = "v1.1.2-beta"
 API_URL = "https://api.github.com/repos/krutoychel24/hru-hru-launcher/releases/latest"
 DOWNLOAD_URL_TEMPLATE = "https://github.com/krutoychel24/hru-hru-launcher/releases/download/{tag}/{filename}"
 # --- END AUTO-UPDATE SETTINGS ---
+
+class FixErrorDialog(QDialog):
+    def __init__(self, error_title, error_desc, fix_suggestion, lang_dict, parent=None):
+        super().__init__(parent)
+        self.lang_dict = lang_dict
+        self.old_pos = None
+        self.init_ui(error_title, error_desc, fix_suggestion)
+        self.apply_styles(parent.current_accent_color if parent else "#1DB954")
+        
+        self.setWindowOpacity(0)
+        self.fade_in_animation = QPropertyAnimation(self, b"windowOpacity")
+        self.fade_in_animation.setDuration(300)
+        self.fade_in_animation.setStartValue(0)
+        self.fade_in_animation.setEndValue(1)
+        self.fade_in_animation.setEasingCurve(QEasingCurve.OutCubic)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.fade_in_animation.start()
+        
+    def init_ui(self, error_title, error_desc, fix_suggestion):
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Dialog)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setFixedSize(480, 280)
+
+        container = QFrame(self)
+        container.setObjectName("dialogContainer")
+        
+        main_layout = QVBoxLayout(container)
+        main_layout.setContentsMargins(0, 0, 0, 20)
+        main_layout.setSpacing(15)
+        
+        self.header_frame = QFrame()
+        self.header_frame.setObjectName("headerFrame")
+        header_layout = QHBoxLayout(self.header_frame)
+        header_layout.setContentsMargins(20, 15, 20, 15)
+
+        icon_pixmap = QPixmap()
+        icon_pixmap.loadFromData(resources.ALERT_ICON_SVG)
+        icon_label = QLabel()
+        icon_label.setPixmap(icon_pixmap.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        
+        dialog_title_label = QLabel(self.lang_dict.get("error_dialog_title", "Error Detected"))
+        dialog_title_label.setObjectName("dialogTitle")
+
+        header_layout.addWidget(icon_label)
+        header_layout.addSpacing(10)
+        header_layout.addWidget(dialog_title_label)
+        header_layout.addStretch()
+
+        body_layout = QVBoxLayout()
+        body_layout.setContentsMargins(25, 0, 25, 0)
+        body_layout.setSpacing(10)
+        
+        error_title_label = QLabel(error_title)
+        error_title_label.setObjectName("errorTitle")
+        error_title_label.setWordWrap(True)
+        
+        error_desc_label = QLabel(error_desc)
+        error_desc_label.setObjectName("errorDesc")
+        error_desc_label.setWordWrap(True)
+
+        fix_suggestion_label = QLabel(fix_suggestion)
+        fix_suggestion_label.setObjectName("fixSuggestion")
+        fix_suggestion_label.setWordWrap(True)
+        
+        body_layout.addWidget(error_title_label)
+        body_layout.addWidget(error_desc_label)
+        body_layout.addSpacing(5)
+        body_layout.addWidget(fix_suggestion_label)
+
+        button_layout = QHBoxLayout()
+        button_layout.setContentsMargins(25, 0, 25, 0)
+        
+        self.cancel_button = AnimatedButton(self.lang_dict.get("cancel_button", "Cancel"))
+        self.cancel_button.setObjectName("cancelButton")
+        self.cancel_button.clicked.connect(self.reject)
+        
+        self.fix_button = AnimatedButton(self.lang_dict.get("fix_button", "Fix It"))
+        self.fix_button.setObjectName("fixButton")
+        self.fix_button.clicked.connect(self.accept)
+        
+        button_layout.addStretch()
+        button_layout.addWidget(self.cancel_button)
+        button_layout.addWidget(self.fix_button)
+        
+        main_layout.addWidget(self.header_frame)
+        main_layout.addLayout(body_layout)
+        main_layout.addStretch()
+        main_layout.addLayout(button_layout)
+        
+        outer_layout = QVBoxLayout(self)
+        outer_layout.addWidget(container)
+        
+    def apply_styles(self, accent_color):
+        self.setStyleSheet(f"""
+            QDialog {{ background: transparent; }}
+            #dialogContainer {{ background-color: #282a36; border: 1px solid #44475a; border-radius: 12px; }}
+            #headerFrame {{ background-color: #3a3d4c; border-bottom: 1px solid #44475a; border-top-left-radius: 12px; border-top-right-radius: 12px; }}
+            #dialogTitle {{ font-size: 14pt; color: #f8f8f2; font-weight: bold; }}
+            #errorTitle {{ font-size: 11pt; color: {accent_color}; font-weight: bold; }}
+            #errorDesc, #fixSuggestion {{ font-size: 10pt; color: #bd93f9; }}
+            #fixSuggestion {{ color: #f8f8f2; }}
+            #cancelButton, #fixButton {{ color: #f8f8f2; padding: 10px 20px; border-radius: 5px; font-weight: bold; }}
+            #cancelButton {{ background-color: #6272a4; }}
+            #fixButton {{ background-color: {accent_color}; }}
+        """)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton and self.header_frame.underMouse():
+            self.old_pos = event.globalPosition().toPoint()
+
+    def mouseReleaseEvent(self, event):
+        self.old_pos = None
+
+    def mouseMoveEvent(self, event):
+        if self.old_pos:
+            delta = event.globalPosition().toPoint() - self.old_pos
+            self.move(self.x() + delta.x(), self.y() + delta.y())
+            self.old_pos = event.globalPosition().toPoint()
 
 class UpdateDialog(QDialog):
     update_requested = Signal()
@@ -208,6 +328,7 @@ class AdvancedSettingsDialog(QDialog):
     def accept(self):
         self.parent_window.jvm_args_input.setText(self.jvm_args_input.text())
         self.parent_window.java_path_input.setText(self.java_path_input.text())
+        self.parent_window.save_settings()
         super().accept()
 
     def open_java_path_dialog(self):
@@ -217,19 +338,9 @@ class AdvancedSettingsDialog(QDialog):
 
     def apply_styles(self):
         self.setStyleSheet(f"""
-            QDialog {{
-                background-color: #282a36;
-                border: 1px solid #44475a;
-            }}
-            QLabel {{
-                color: #f8f8f2;
-            }}
-            #closeButton {{
-                color: #f8f8f2;
-                padding: 8px 16px;
-                border-radius: 5px;
-                background-color: #6272a4;
-            }}
+            QDialog {{ background-color: #282a36; border: 1px solid #44475a; }}
+            QLabel {{ color: #f8f8f2; }}
+            #closeButton {{ color: #f8f8f2; padding: 8px 16px; border-radius: 5px; background-color: #6272a4; }}
         """)
 
 
@@ -362,7 +473,7 @@ class MinecraftLauncher(QWidget):
         self.minecraft_directory = minecraft_launcher_lib.utils.get_minecraft_directory()
         os.makedirs(self.minecraft_directory, exist_ok=True)
         self.installed_mods_path = os.path.join(self.minecraft_directory, "installed_mods.json")
-
+        
         self.init_fonts()
         self.init_icons()
         self.init_ui()
@@ -598,8 +709,9 @@ class MinecraftLauncher(QWidget):
         panel_layout.addWidget(self.error_label)
         panel_layout.addWidget(self.progress_bar)
         panel_layout.addWidget(self.launch_button)
+        
         content_layout.addWidget(main_panel)
-
+        
     def create_tabs_panel(self, content_layout):
         self.tab_widget = QTabWidget()
         self.tab_widget.setFont(self.minecraft_font)
@@ -620,7 +732,6 @@ class MinecraftLauncher(QWidget):
         settings_layout.setContentsMargins(20, 20, 20, 20)
         settings_layout.setSpacing(15)
 
-        # --- Создаём виджеты для расширенных настроек, но не добавляем их в layout ---
         self.jvm_args_label = QLabel()
         self.jvm_args_label.setFont(self.subtitle_font)
         self.jvm_args_input = QLineEdit(self.settings.get("jvm_args", ""))
@@ -628,7 +739,6 @@ class MinecraftLauncher(QWidget):
         self.java_path_label = QLabel()
         self.java_path_label.setFont(self.subtitle_font)
         self.java_path_input = QLineEdit(self.settings.get("java_path", ""))
-        # --- Конец создания виджетов ---
 
         self.lang_label = QLabel()
         self.lang_label.setFont(self.subtitle_font)
@@ -1143,7 +1253,6 @@ class MinecraftLauncher(QWidget):
         self.log_to_console(f"Failed to load version list: {error_msg}")
 
     def update_mod_list(self):
-        # ✅ ADDED: Защита от "спама" кнопки обновления
         if self.mod_search_worker and self.mod_search_worker.isRunning():
             return
 
@@ -1379,6 +1488,11 @@ class MinecraftLauncher(QWidget):
         }
 
         selected_version = self.version_combo.currentData(Qt.UserRole)
+        if not selected_version:
+            self.log_to_console("Ошибка: Версия игры не выбрана!")
+            self.on_launch_finished("error", {"type": "generic", "message": "Версия игры не выбрана."})
+            return
+            
         mod_loader = self.current_version_type if self.current_version_type != "vanilla" else None
 
         self.worker = MinecraftWorker(
@@ -1403,17 +1517,88 @@ class MinecraftLauncher(QWidget):
         self.progress_bar.setMaximum(max_val)
         self.progress_bar.setValue(current)
 
-    def on_launch_finished(self, result):
+    def on_launch_finished(self, result, details=None):
         lang = resources.LANGUAGES[self.current_language]
         self.launch_button.setEnabled(True)
         self.launch_button.setText(lang["launch"])
         self.progress_bar.setVisible(False)
-        if result != "success":
-            self.error_label.setText(result)
-            self.error_label.setVisible(True)
+
+        if result != "success" and details:
+            error_type = details.get("type")
+            self.log_to_console(f"Получена ошибка типа: {error_type}")
+
+            if error_type == "file_corruption":
+                version_id = details.get("version_id", "выбранной")
+                title = lang.get("error_file_corruption_title")
+                desc = lang.get("error_file_corruption_desc").format(version_id=version_id)
+                fix = lang.get("error_file_corruption_fix")
+                
+                dialog = FixErrorDialog(title, desc, fix, lang, self)
+                if dialog.exec() == QDialog.Accepted:
+                    self.reinstall_version(version_id)
+
+            elif error_type == "invalid_java_path":
+                if self.java_path_input.text():
+                    title = lang.get("error_java_path_title")
+                    desc = lang.get("error_java_path_desc")
+                    fix = lang.get("error_java_path_fix")
+                    
+                    dialog = FixErrorDialog(title, desc, fix, lang, self)
+                    if dialog.exec() == QDialog.Accepted:
+                        self.java_path_input.setText("")
+                        self.save_settings()
+                        self.start_minecraft()
+                else:
+                    title = lang.get("error_java_path_title")
+                    desc = lang.get("error_manual_java_path_desc")
+                    fix = lang.get("error_manual_java_path_fix")
+                    dialog = FixErrorDialog(title, desc, fix, lang, self)
+                    dialog.fix_button.setVisible(False)
+                    dialog.cancel_button.setText("OK")
+                    dialog.exec()
+            
+            elif error_type == "invalid_jvm_argument":
+                title = lang.get("error_jvm_args_title")
+                desc = lang.get("error_jvm_args_desc")
+                fix = lang.get("error_jvm_args_fix")
+                
+                dialog = FixErrorDialog(title, desc, fix, lang, self)
+                if dialog.exec() == QDialog.Accepted:
+                    self.jvm_args_input.setText("")
+                    self.save_settings()
+                    self.start_minecraft()
+
+            else:
+                self.error_label.setText(details.get("message", lang.get("error_occurred")))
+                self.error_label.setVisible(True)
+
+        elif result != "success":
+             self.error_label.setText(result)
+             self.error_label.setVisible(True)
 
         if self.close_launcher_checkbox.isChecked() and result == "success":
             self.close()
+
+    def reinstall_version(self, version_id):
+        version_path = os.path.join(self.minecraft_directory, "versions", version_id)
+        self.log_to_console(f"Начало переустановки версии {version_id}. Путь: {version_path}")
+        if os.path.exists(version_path):
+            try:
+                shutil.rmtree(version_path)
+                self.log_to_console(f"Папка версии '{version_id}' успешно удалена.")
+                QMessageBox.information(self, "Успех",
+                    f"Файлы версии '{version_id}' были удалены. Нажмите 'Играть', чтобы скачать их заново.",
+                    QMessageBox.Ok)
+                self.populate_versions(self.current_version_type)
+            except Exception as e:
+                self.log_to_console(f"Не удалось удалить папку версии: {e}")
+                QMessageBox.critical(self, "Ошибка",
+                    f"Не удалось удалить папку '{version_path}'.\nПроверьте, не запущена ли игра, или удалите ее вручную.",
+                    QMessageBox.Ok)
+        else:
+             QMessageBox.warning(self, "Внимание",
+                "Папка версии и так не найдена. Нажмите 'Играть' для установки.",
+                QMessageBox.Ok)
 
     def log_to_console(self, message):
         self.console_output.append(message)

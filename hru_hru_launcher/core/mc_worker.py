@@ -8,12 +8,17 @@ from PySide6.QtCore import QThread, Signal
 import minecraft_launcher_lib
 
 from .profile_manager import create_launcher_profiles_if_needed, add_profile
-from ..config.resources import LANGUAGES
+from ..config import resources, settings
+
+class GameProcessError(Exception):
+    def __init__(self, message, exit_code):
+        super().__init__(message)
+        self.exit_code = exit_code
 
 
 class MinecraftWorker(QThread):
     progress_update = Signal(int, int, str)
-    finished = Signal(str)
+    finished = Signal(str, object)
     log_message = Signal(str)
 
     def __init__(
@@ -26,7 +31,7 @@ class MinecraftWorker(QThread):
         fullscreen=False,
         options=None,
         lang="ru",
-        mod_loader=None,
+        mod_loader=None
     ):
         super().__init__()
         self.mc_version = mc_version
@@ -51,10 +56,14 @@ class MinecraftWorker(QThread):
         callback = {
             "setStatus": lambda text: self.log_and_update_status(text),
             "setProgress": lambda value: self.progress_update.emit(
-                value, 100, f"{LANGUAGES[self.lang]['downloading']} {value}%"
+                value, 100, f"{resources.LANGUAGES[self.lang]['downloading']} {value}%"
             ),
             "setMax": lambda value: None,
         }
+        
+        version_id_to_launch = ""
+        command = []
+
         try:
             create_launcher_profiles_if_needed(self.minecraft_dir, self.client_token)
             
@@ -91,7 +100,6 @@ class MinecraftWorker(QThread):
                         minecraft_launcher_lib.fabric.install_fabric(
                             base_mc_version, self.minecraft_dir, callback=callback
                         )
-                        # Re-check after installation
                         installed_versions_data_after = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
                         fabric_versions = [v for v in installed_versions_data_after if v["id"].startswith(f"fabric-loader-") and base_mc_version in v["id"]]
                         if not fabric_versions:
@@ -115,9 +123,8 @@ class MinecraftWorker(QThread):
                             )
                         except Exception as forge_install_error:
                             self.log_message.emit(f"Forge installation failed: {forge_install_error}.")
-                            raise forge_install_error # Re-raise the exception to stop the process
+                            raise forge_install_error
                         
-                        # Re-check after installation
                         all_installed_after = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
                         version_id_to_launch = self._detect_forge_id(all_installed_after, base_mc_version)
                         if not version_id_to_launch:
@@ -127,12 +134,12 @@ class MinecraftWorker(QThread):
                         self.log_and_update_status(f"Found existing Forge version: {version_id_to_launch}")
                     
                     profile_name = f"{base_mc_version} Forge"
-
+            
             add_profile(self.minecraft_dir, version_id_to_launch, profile_name)
 
             custom_jvm_args = self.options.get("jvmArguments", [])
             all_jvm_args = [f"-Xmx{self.memory_gb}G", f"-Xms{self.memory_gb}G"] + custom_jvm_args
-
+            
             launch_options = {
                 "username": self.username,
                 "uuid": str(uuid.uuid3(uuid.NAMESPACE_DNS, self.username)),
@@ -147,7 +154,7 @@ class MinecraftWorker(QThread):
             
             launch_options = {k: v for k, v in launch_options.items() if v}
 
-            self.log_and_update_status(LANGUAGES[self.lang]["starting"])
+            self.log_and_update_status(resources.LANGUAGES[self.lang]["starting"])
             self.log_message.emit(f"Using Minecraft data directory: {self.minecraft_dir}")
 
             command = minecraft_launcher_lib.command.get_minecraft_command(
@@ -181,14 +188,40 @@ class MinecraftWorker(QThread):
 
             for line in iter(process.stdout.readline, ""):
                 self.log_message.emit(line.strip())
+            
             process.wait()
-            self.finished.emit("success")
+
+            exit_code = process.returncode
+            if exit_code != 0:
+                self.log_message.emit(f"Процесс завершился с кодом {exit_code}. Вероятно, произошла ошибка.")
+                raise GameProcessError(f"Game process exited with code {exit_code}", exit_code)
+
+            self.finished.emit("success", None)
+
         except Exception as e:
-            error_msg = f"{LANGUAGES[self.lang]['error_occurred']}{e}"
+            error_details = {"message": str(e), "version_id": version_id_to_launch}
+            lang = resources.LANGUAGES[self.lang]
+            
+            if isinstance(e, FileNotFoundError):
+                error_details["type"] = "invalid_java_path"
+                error_msg = lang['error_occurred'] + "Неверный путь к Java."
+            
+            elif isinstance(e, GameProcessError):
+                if e.exit_code == 1:
+                    error_details["type"] = "invalid_jvm_argument"
+                    error_msg = lang['error_occurred'] + "Неверный аргумент или настройка JVM."
+                else:
+                    error_details["type"] = "file_corruption"
+                    error_msg = lang['error_occurred'] + "Игра аварийно завершилась. Возможно, файлы повреждены."
+            
+            else:
+                error_details["type"] = "generic"
+                error_msg = f"{lang['error_occurred']}{e}"
+
             self.log_message.emit(f"ERROR: {error_msg}")
             import traceback
             self.log_message.emit(traceback.format_exc())
-            self.finished.emit(error_msg)
+            self.finished.emit("error", error_details)
 
     def log_and_update_status(self, text):
         self.progress_update.emit(0, 1, text)

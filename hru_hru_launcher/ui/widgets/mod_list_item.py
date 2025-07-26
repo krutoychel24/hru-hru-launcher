@@ -1,6 +1,6 @@
 import requests
 from functools import partial
-from PySide6.QtCore import Qt, QThread, Signal, QSize
+from PySide6.QtCore import Qt, QThread, Signal, QSize, QTimer
 from PySide6.QtGui import QPixmap, QIcon
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QStackedLayout, QProgressBar, QApplication
 
@@ -12,21 +12,35 @@ class ImageLoaderWorker(QThread):
     def __init__(self, url, parent=None):
         super().__init__(parent)
         self.url = url
+        self._should_stop = False
         
     def run(self):
         try:
+            if self._should_stop:
+                return
+                
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
             response = requests.get(self.url, stream=True, timeout=10, headers=headers)
+            
+            if self._should_stop:
+                return
+                
             response.raise_for_status()
             pixmap = QPixmap()
             if pixmap.loadFromData(response.content):
-                self.finished.emit(pixmap)
+                if not self._should_stop:
+                    self.finished.emit(pixmap)
             else:
-                self.finished.emit(QPixmap())
+                if not self._should_stop:
+                    self.finished.emit(QPixmap())
         except (requests.RequestException, Exception):
-            self.finished.emit(QPixmap())
+            if not self._should_stop:
+                self.finished.emit(QPixmap())
+    
+    def stop(self):
+        self._should_stop = True
 
 class ModListItemWidget(QWidget):
     install_requested = Signal(dict)
@@ -39,6 +53,7 @@ class ModListItemWidget(QWidget):
         self.lang_dict = lang_dict
         self.is_installed = is_installed
         self.image_loader = None
+        self._is_being_destroyed = False
         
         self.setWindowFlags(Qt.Widget)
         self.setAttribute(Qt.WA_DeleteOnClose, False)
@@ -170,22 +185,53 @@ class ModListItemWidget(QWidget):
 
     def load_icon(self):
         icon_url = self.mod_data.get("icon_url")
-        if icon_url and not self.image_loader:
-            self.image_loader = ImageLoaderWorker(icon_url, parent=self)
-            self.image_loader.finished.connect(self.set_icon)
-            self.image_loader.finished.connect(self.cleanup_loader)
+        if icon_url:
+            # Если есть уже запущенный загрузчик - останавливаем его
+            if self.image_loader:
+                self.cleanup_loader()
+            
+            # Создаем новый загрузчик
+            self.image_loader = ImageLoaderWorker(icon_url, self)
+            self.image_loader.finished.connect(self.on_image_loaded)
             self.image_loader.start()
 
-    def cleanup_loader(self):
-        if self.image_loader:
-            self.image_loader.deleteLater()
-            self.image_loader = None
-
-    def set_icon(self, pixmap):
+    def on_image_loaded(self, pixmap):
+        # Проверяем, что виджет не уничтожается
+        if self._is_being_destroyed:
+            return
+            
         if not pixmap.isNull():
             self.icon_label.setStyleSheet("")
             self.icon_label.setText("")
             self.icon_label.setPixmap(pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        
+        # Очищаем загрузчик после использования
+        self.cleanup_loader()
+
+    def cleanup_loader(self):
+        if self.image_loader:
+            # Отключаем все сигналы
+            self.image_loader.finished.disconnect()
+            
+            # Останавливаем поток
+            self.image_loader.stop()
+            
+            # Если поток еще работает - принудительно завершаем
+            if self.image_loader.isRunning():
+                self.image_loader.terminate()
+                # Не ждем - сразу помечаем для удаления
+                QTimer.singleShot(0, lambda: self.force_cleanup_loader())
+            else:
+                self.image_loader.deleteLater()
+                self.image_loader = None
+
+    def force_cleanup_loader(self):
+        if self.image_loader:
+            # Последняя попытка - ждем немного и удаляем
+            if self.image_loader.isRunning():
+                self.image_loader.wait(100)  # Очень короткое ожидание
+            self.image_loader.deleteLater()
+            self.image_loader = None
 
     def update_view(self, is_installing=False, progress=0):
         if is_installing:
@@ -208,7 +254,11 @@ class ModListItemWidget(QWidget):
         super().setVisible(visible)
 
     def closeEvent(self, event):
-        if self.image_loader and self.image_loader.isRunning():
-            self.image_loader.terminate()
-            self.image_loader.wait(1000)
+        self._is_being_destroyed = True
+        self.cleanup_loader()
         super().closeEvent(event)
+    
+    def __del__(self):
+        self._is_being_destroyed = True
+        if hasattr(self, 'image_loader') and self.image_loader:
+            self.cleanup_loader()

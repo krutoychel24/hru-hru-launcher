@@ -1,4 +1,3 @@
-# hru_hru_launcher/config/settings.py
 import os
 import json
 import uuid
@@ -9,27 +8,39 @@ SETTINGS_FILE_PATH = os.path.join(get_launcher_data_dir(), "launcher_settings.js
 def load_settings():
     """Loads launcher settings from the JSON file."""
     defaults = {
-        "language": "ru",
-        "theme": "dark",
+        "language": "en",
         "memory": 4,
         "fullscreen": False,
         "close_launcher": True,
         "last_username": "",
-        "use_g1gc": False,
         "version_type": "vanilla",
         "last_version": "",
+        "accent_color": "#1DB954",
+        "last_tab": 0,
+        "window_geometry": "",
+        "jvm_args": "",
+        "java_path": "",
         "clientToken": uuid.uuid4().hex,
     }
+    
     if os.path.exists(SETTINGS_FILE_PATH):
         try:
             with open(SETTINGS_FILE_PATH, "r", encoding="utf-8") as f:
                 settings = json.load(f)
-            defaults.update(settings)
+            for key, value in defaults.items():
+                if key not in settings:
+                    settings[key] = value
+            return settings
         except (json.JSONDecodeError, IOError) as e:
             print(f"Error loading settings: {e}. Using defaults.")
+            defaults["clientToken"] = uuid.uuid4().hex
+            return defaults
     return defaults
 
 def save_settings(settings_dict):
     """Saves launcher settings to the JSON file."""
-    with open(SETTINGS_FILE_PATH, "w", encoding="utf-8") as f:
-        json.dump(settings_dict, f, ensure_ascii=False, indent=4)
+    try:
+        with open(SETTINGS_FILE_PATH, "w", encoding="utf-8") as f:
+            json.dump(settings_dict, f, ensure_ascii=False, indent=4)
+    except IOError as e:
+        print(f"Error saving settings: {e}")
