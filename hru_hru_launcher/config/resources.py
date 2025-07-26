@@ -89,6 +89,10 @@ LANGUAGES = {
         "error_finding_mod_version": "Не удалось найти версию для {project_id} (MC {game_version}, {loader}): {e}",
         "file_downloaded_successfully": "Файл {filename} успешно скачан.",
         "error_downloading_file": "Ошибка скачивания {filename}: {e}",
+        "search": "Поиск",
+        "installed": "Установленные",
+        "scanning": "Сканирование...",
+        "no_local_mods_found": "Моды в папке не найдены.",
     },
     "en": {
         "title": "Hru Hru Launcher",
@@ -164,6 +168,10 @@ LANGUAGES = {
         "error_finding_mod_version": "Could not find a version for {project_id} (MC {game_version}, {loader}): {e}",
         "file_downloaded_successfully": "File {filename} downloaded successfully.",
         "error_downloading_file": "Error downloading {filename}: {e}",
+        "search": "Search",
+        "installed": "Installed",
+        "scanning": "Scanning...",
+        "no_local_mods_found": "No mods found in folder.",
     },
     "ua": {
         "title": "Hru Hru Launcher",
@@ -239,5 +247,9 @@ LANGUAGES = {
         "error_finding_mod_version": "Не вдалося знайти версію для {project_id} (MC {game_version}, {loader}): {e}",
         "file_downloaded_successfully": "Файл {filename} успішно завантажено.",
         "error_downloading_file": "Помилка завантаження {filename}: {e}",
+        "search": "Пошук",
+        "installed": "Встановлені",
+        "scanning": "Сканування...",
+        "no_local_mods_found": "Моди в папці не знайдено.",
     }
 }
