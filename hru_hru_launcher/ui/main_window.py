@@ -21,6 +21,7 @@ import minecraft_launcher_lib
 
 from .widgets import AnimatedButton
 from .widgets.mod_list_item import ModListItemWidget
+from .widgets.installed_mod_list_item import InstalledModListItemWidget
 from . import themes
 from ..core.mc_worker import MinecraftWorker
 from ..core import mod_manager
@@ -56,73 +57,56 @@ class FixErrorDialog(QDialog):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Dialog)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setFixedSize(480, 280)
-
         container = QFrame(self)
         container.setObjectName("dialogContainer")
-        
         main_layout = QVBoxLayout(container)
         main_layout.setContentsMargins(0, 0, 0, 20)
         main_layout.setSpacing(15)
-        
         self.header_frame = QFrame()
         self.header_frame.setObjectName("headerFrame")
         header_layout = QHBoxLayout(self.header_frame)
         header_layout.setContentsMargins(20, 15, 20, 15)
-
         icon_pixmap = QPixmap()
         icon_pixmap.loadFromData(resources.ALERT_ICON_SVG)
         icon_label = QLabel()
         icon_label.setPixmap(icon_pixmap.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        
         dialog_title_label = QLabel(self.lang_dict.get("error_dialog_title", "Error Detected"))
         dialog_title_label.setObjectName("dialogTitle")
-
         header_layout.addWidget(icon_label)
         header_layout.addSpacing(10)
         header_layout.addWidget(dialog_title_label)
         header_layout.addStretch()
-
         body_layout = QVBoxLayout()
         body_layout.setContentsMargins(25, 0, 25, 0)
         body_layout.setSpacing(10)
-        
         error_title_label = QLabel(error_title)
         error_title_label.setObjectName("errorTitle")
         error_title_label.setWordWrap(True)
-        
         error_desc_label = QLabel(error_desc)
         error_desc_label.setObjectName("errorDesc")
         error_desc_label.setWordWrap(True)
-
         fix_suggestion_label = QLabel(fix_suggestion)
         fix_suggestion_label.setObjectName("fixSuggestion")
         fix_suggestion_label.setWordWrap(True)
-        
         body_layout.addWidget(error_title_label)
         body_layout.addWidget(error_desc_label)
         body_layout.addSpacing(5)
         body_layout.addWidget(fix_suggestion_label)
-
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(25, 0, 25, 0)
-        
         self.cancel_button = AnimatedButton(self.lang_dict.get("cancel_button", "Cancel"))
         self.cancel_button.setObjectName("cancelButton")
         self.cancel_button.clicked.connect(self.reject)
-        
         self.fix_button = AnimatedButton(self.lang_dict.get("fix_button", "Fix It"))
         self.fix_button.setObjectName("fixButton")
         self.fix_button.clicked.connect(self.accept)
-        
         button_layout.addStretch()
         button_layout.addWidget(self.cancel_button)
         button_layout.addWidget(self.fix_button)
-        
         main_layout.addWidget(self.header_frame)
         main_layout.addLayout(body_layout)
         main_layout.addStretch()
         main_layout.addLayout(button_layout)
-        
         outer_layout = QVBoxLayout(self)
         outer_layout.addWidget(container)
         
@@ -155,19 +139,15 @@ class FixErrorDialog(QDialog):
 
 class UpdateDialog(QDialog):
     update_requested = Signal()
-
     def __init__(self, status_info, fonts, parent=None):
         super().__init__(parent)
         self.status_info = status_info
         self.fonts = fonts
-        
         self.icons = {
             "check": b"""<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#78f542" viewBox="0 0 256 256"><path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"></path></svg>""",
             "download": b"""<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#ff5555" viewBox="0 0 256 256"><path d="M208,152v48a8,8,0,0,1-8,8H56a8,8,0,0,1-8-8V152a8,8,0,0,1,16,0v40H192V152a8,8,0,0,1,16,0Zm-85.66,5.66a8,8,0,0,0,11.32,0l48-48a8,8,0,0,0-11.32-11.32L136,132.69V40a8,8,0,0,0-16,0v92.69L85.66,98.34a8,8,0,0,0-11.32,11.32Z"></path></svg>"""
         }
-        
         self.init_ui()
-        
         self.setWindowOpacity(0)
         self.fade_in_animation = QPropertyAnimation(self, b"windowOpacity")
         self.fade_in_animation.setDuration(300)
@@ -183,54 +163,43 @@ class UpdateDialog(QDialog):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Dialog)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setFixedSize(400, 220)
-
         container = QFrame(self)
         container.setObjectName("updateDialogContainer")
-        
         main_layout = QVBoxLayout(container)
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(15)
-
         title_label = QLabel("Update Status")
         title_label.setObjectName("updateDialogTitle")
         title_label.setFont(self.fonts["subtitle"])
-        
         info_layout = QHBoxLayout()
         icon_label = QLabel()
         icon_pixmap = QPixmap()
         icon_data = self.icons["download"] if self.status_info["is_update_available"] else self.icons["check"]
         icon_pixmap.loadFromData(icon_data)
         icon_label.setPixmap(icon_pixmap.scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        
         message_label = QLabel(self.status_info["text"])
         message_label.setObjectName("updateDialogMessage")
         message_label.setFont(self.fonts["main"])
         message_label.setWordWrap(True)
-        
         info_layout.addWidget(icon_label)
         info_layout.addWidget(message_label, 1)
-
         button_layout = QHBoxLayout()
         self.update_button = AnimatedButton("Update")
         self.update_button.setObjectName("updateButton")
         self.update_button.setFont(self.fonts["main"])
         self.update_button.setVisible(self.status_info["is_update_available"])
         self.update_button.clicked.connect(self.update_requested.emit)
-        
         close_button = AnimatedButton("Close")
         close_button.setObjectName("closeButton")
         close_button.setFont(self.fonts["main"])
         close_button.clicked.connect(self.close)
-
         button_layout.addStretch()
         button_layout.addWidget(self.update_button)
         button_layout.addWidget(close_button)
-
         main_layout.addWidget(title_label)
         main_layout.addLayout(info_layout)
         main_layout.addStretch()
         main_layout.addLayout(button_layout)
-        
         outer_layout = QVBoxLayout(self)
         outer_layout.addWidget(container)
         self.set_styles()
@@ -253,13 +222,10 @@ class AdvancedSettingsDialog(QDialog):
         self.parent_window = parent
         self.setWindowTitle(resources.LANGUAGES[self.parent_window.current_language].get("advanced_settings", "Advanced Settings"))
         self.setMinimumWidth(500)
-
         self.jvm_args_input = QLineEdit(self.parent_window.jvm_args_input.text())
         self.jvm_args_input.setPlaceholderText("-XX:+UseG1GC -Xmx...G")
-        
         self.java_path_input = QLineEdit(self.parent_window.java_path_input.text())
         self.java_path_input.setPlaceholderText("Auto")
-
         self.init_ui()
         self.apply_styles()
 
@@ -267,35 +233,28 @@ class AdvancedSettingsDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
-
         jvm_args_label = QLabel(self.parent_window.jvm_args_label.text())
         jvm_args_label.setFont(self.parent_window.subtitle_font)
-
         java_path_label = QLabel(self.parent_window.java_path_label.text())
         java_path_label.setFont(self.parent_window.subtitle_font)
-
         java_path_button = QPushButton()
         java_path_button.setIcon(self.parent_window.folder_icon)
         java_path_button.setFixedSize(36, 36)
         java_path_button.setIconSize(QSize(24, 24))
         java_path_button.clicked.connect(self.open_java_path_dialog)
-
         java_path_layout = QHBoxLayout()
         java_path_layout.addWidget(self.java_path_input)
         java_path_layout.addWidget(java_path_button)
-
         layout.addWidget(jvm_args_label)
         layout.addWidget(self.jvm_args_input)
         layout.addSpacing(10)
         layout.addWidget(java_path_label)
         layout.addLayout(java_path_layout)
         layout.addStretch()
-
         close_button = AnimatedButton(resources.LANGUAGES[self.parent_window.current_language].get("close", "Close"))
         close_button.setObjectName("closeButton")
         close_button.setFont(self.parent_window.minecraft_font)
         close_button.clicked.connect(self.accept)
-
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         button_layout.addWidget(close_button)
@@ -411,7 +370,13 @@ class ModDownloadWorker(QThread):
             logging.info(f"[Worker {self.project_id}] File download finished with status: {success}")
 
             if success and self.is_running:
-                file_info = {"filename": file_name, "url": file_url, "project_id": self.project_id}
+                # Add game_version to the saved info
+                file_info = {
+                    "filename": file_name, 
+                    "url": file_url, 
+                    "project_id": self.project_id,
+                    "game_version": self.game_version 
+                }
                 self.mod_info_signal.emit(self.project_id, file_info)
                 self.finished.emit(self.project_id, True, f"Successfully downloaded {file_name}")
             elif not self.is_running:
@@ -431,6 +396,19 @@ class ModDownloadWorker(QThread):
         logging.info(f"[Worker {self.project_id}] Received stop command for thread.")
         self.is_running = False
 
+class LocalModsScannerWorker(QThread):
+    finished = Signal(list)
+
+    def __init__(self, mods_folder, lang_dict, installed_mods_data, parent=None):
+        super().__init__(parent)
+        self.mods_folder = mods_folder
+        self.lang_dict = lang_dict
+        self.installed_mods_data = installed_mods_data
+
+    def run(self):
+        mods = mod_manager.scan_local_mods(self.mods_folder, self.lang_dict, self.installed_mods_data)
+        self.finished.emit(mods)
+
 
 class MinecraftLauncher(QWidget):
     def __init__(self):
@@ -439,6 +417,7 @@ class MinecraftLauncher(QWidget):
         self.version_loader = None
         self.mod_search_worker = None
         self.update_check_worker = None
+        self.local_mods_scanner = None
         self.mod_download_workers = {}
         self.mod_list_item_map = {}
         self.mod_current_page = 1
@@ -484,8 +463,8 @@ class MinecraftLauncher(QWidget):
         font_id = QFontDatabase.addApplicationFont(font_path)
         if font_id != -1:
             font_families = QFontDatabase.applicationFontFamilies(font_id)
-            self.minecraft_font = QFont(font_families[0], 10)
-            self.title_font = QFont(font_families[0], 28, QFont.Bold)
+            self.minecraft_font = QFont(font_families[0], 9)
+            self.title_font = QFont(font_families[0], 22, QFont.Bold)
             self.subtitle_font = QFont(font_families[0], 14)
         else:
             logging.warning("Font not found. Using default font.")
@@ -498,7 +477,6 @@ class MinecraftLauncher(QWidget):
             pixmap = QPixmap()
             pixmap.loadFromData(svg_data)
             return QIcon(pixmap)
-
         self.play_icon = create_icon(resources.PLAY_ICON_SVG)
         self.settings_icon = create_icon(resources.SETTINGS_ICON_SVG)
         self.news_icon = create_icon(resources.NEWS_ICON_SVG)
@@ -510,7 +488,6 @@ class MinecraftLauncher(QWidget):
         self.vpn_icon = create_icon(resources.VPN_ICON_SVG)
         self.installed_icon = create_icon(resources.INSTALLED_ICON_SVG)
         self.folder_icon = create_icon(base64.b64decode("PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iI2Y4ZjhmMiIgdmlld0JveD0iMCAwIDI1NiAyNTYiPjxwYXRoIGQ9Ik0yMjQsODhINzJBNzEuNzYsNzEuNzYsMCwwLDAsMTYsMTUyVjE4NGE4LDgsMCwwLDAsOCw4SDIyNGE4LDgsMCwwLDAsOC04Vjk2QTgsOCwwLDAsMCwyMjQsODhaTTQ4LDE1MkEyMy44MiwyMy44MiwwLDAsMSw3MiwxMjhoMTQ0djI0SDcyQTI0LDI0LDAsMCwxLDQ4LDE1MlpNMjE2LDEwNEgxODguMzhhNDAsNDAsMCwwLDAtNzYuNzYsMEg3MkEyMy44MiwyMy44MiwwLDAsMSw0OCwxMjguMzlWMTI4YTU1Ljc1LDU1Ljc1LDAsMCwxLC43Ny05LjA4bDEzLjE0LTQ4LjYyQTgsOCwwLDAsMSw3MCw2NEgyMDhhOCw4LDAsMCwxLDcuMSw0LjYzbDE4LjgxLDQ3QzIzOS40MSwxMjEuMjgsMjMyLDEyOCwyMjQsMTI4YTcuNzgsNy43OCwwLDAsMC0yLjE4LS4yN1YxMDRaIj48L3BhdGg+PC9zdmc+"))
-        
         assets_dir = get_assets_dir()
         icon_path = os.path.join(assets_dir, "launcher-icon.ico")
         if os.path.exists(icon_path):
@@ -519,35 +496,29 @@ class MinecraftLauncher(QWidget):
     def init_ui(self):
         self.setWindowTitle("Hru Hru Launcher")
         self.resize(1280, 800)
-        self.setMinimumSize(960, 600)
+        self.setMinimumSize(1080, 700)
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        
         if 'window_geometry' in self.settings:
             try:
                 geom_data = self.settings['window_geometry'].encode('utf-8')
                 self.restoreGeometry(QByteArray.fromBase64(QByteArray(geom_data)))
             except Exception as e:
                 logging.error(f"Failed to restore window geometry: {e}")
-
         self.container = QWidget(self)
         self.container.setObjectName("container")
         main_layout = QVBoxLayout(self.container)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
-
         self.create_title_bar(main_layout)
-
         content_layout = QHBoxLayout()
         content_layout.setContentsMargins(20, 10, 20, 10)
         self.create_main_panel(content_layout)
         self.create_tabs_panel(content_layout)
         main_layout.addLayout(content_layout)
-
         bottom_bar_layout = QHBoxLayout()
         bottom_bar_layout.setContentsMargins(0, 0, 5, 5)
         bottom_bar_layout.addStretch()
-        
         self.version_status_label = QLabel(f"{APP_VERSION}")
         self.version_status_label.setObjectName("versionStatusLabel")
         self.version_status_label.setFont(self.minecraft_font)
@@ -555,16 +526,12 @@ class MinecraftLauncher(QWidget):
         self.version_status_label.mousePressEvent = lambda event: self.check_for_updates(manual=True)
         self.update_version_display()
         bottom_bar_layout.addWidget(self.version_status_label)
-        
         size_grip = QSizeGrip(self)
         bottom_bar_layout.addWidget(size_grip, 0, Qt.AlignBottom | Qt.AlignRight)
-
         main_layout.addLayout(bottom_bar_layout)
-
         outer_layout = QVBoxLayout(self)
         outer_layout.addWidget(self.container)
         outer_layout.setContentsMargins(0, 0, 0, 0)
-
         self.apply_theme()
         self.update_ui_text()
         self.populate_versions(self.current_version_type)
@@ -576,7 +543,6 @@ class MinecraftLauncher(QWidget):
         self.title_bar.setFixedHeight(60)
         title_layout = QHBoxLayout(self.title_bar)
         title_layout.setContentsMargins(20, 10, 20, 10)
-
         self.title_label = QLabel()
         self.title_label.setFont(self.title_font)
         self.title_label.setObjectName("titleLabel")
@@ -586,17 +552,14 @@ class MinecraftLauncher(QWidget):
         self.title_label.setGraphicsEffect(self.glow_effect)
         title_layout.addWidget(self.title_label)
         title_layout.addStretch()
-
         self.minimize_button = QPushButton("—")
         self.minimize_button.setObjectName("minimizeButton")
         self.minimize_button.setFixedSize(30, 30)
         self.minimize_button.clicked.connect(self.showMinimized)
-
         self.close_button = QPushButton("✕")
         self.close_button.setObjectName("closeButton")
         self.close_button.setFixedSize(30, 30)
         self.close_button.clicked.connect(self.close)
-
         title_layout.addWidget(self.minimize_button)
         title_layout.addWidget(self.close_button)
         main_layout.addWidget(self.title_bar)
@@ -608,30 +571,24 @@ class MinecraftLauncher(QWidget):
         panel_layout = QVBoxLayout(main_panel)
         panel_layout.setContentsMargins(20, 20, 20, 20)
         panel_layout.setSpacing(15)
-
         self.version_type_label = QLabel()
         self.version_type_label.setFont(self.subtitle_font)
         self.version_type_label.setObjectName("sectionLabel")
-
         self.version_type_group = QButtonGroup(self)
         self.vanilla_radio = QRadioButton()
         self.forge_radio = QRadioButton()
         self.fabric_radio = QRadioButton()
-
         version_type_map = {"vanilla": 0, "forge": 1, "fabric": 2}
         self.version_type_group.addButton(self.vanilla_radio, version_type_map["vanilla"])
         self.version_type_group.addButton(self.forge_radio, version_type_map["forge"])
         self.version_type_group.addButton(self.fabric_radio, version_type_map["fabric"])
-
         self.version_type_group.button(version_type_map.get(self.current_version_type, 0)).setChecked(True)
         self.version_type_group.idClicked.connect(self.change_version_type)
-
         version_type_layout = QHBoxLayout()
         version_type_layout.addWidget(self.vanilla_radio)
         version_type_layout.addWidget(self.forge_radio)
         version_type_layout.addWidget(self.fabric_radio)
         version_type_layout.addStretch()
-
         self.version_label = QLabel()
         self.version_label.setFont(self.subtitle_font)
         self.version_label.setObjectName("sectionLabel")
@@ -641,12 +598,10 @@ class MinecraftLauncher(QWidget):
         version_layout.addWidget(version_icon_label)
         version_layout.addWidget(self.version_label)
         version_layout.addStretch()
-
         self.version_combo = QComboBox()
         self.version_combo.setFont(self.minecraft_font)
         self.version_combo.setFixedHeight(40)
         self.version_combo.setIconSize(QSize(16, 16))
-
         self.username_label = QLabel()
         self.username_label.setFont(self.subtitle_font)
         self.username_label.setObjectName("sectionLabel")
@@ -656,12 +611,10 @@ class MinecraftLauncher(QWidget):
         username_layout.addWidget(username_icon_label)
         username_layout.addWidget(self.username_label)
         username_layout.addStretch()
-
         self.user_input = QLineEdit()
         self.user_input.setFont(self.minecraft_font)
         self.user_input.setFixedHeight(40)
         self.user_input.setText(self.settings.get("last_username", ""))
-
         self.launch_button = AnimatedButton("")
         self.launch_button.setObjectName("launchButton")
         self.launch_button.setFont(self.subtitle_font)
@@ -669,20 +622,17 @@ class MinecraftLauncher(QWidget):
         self.launch_button.setIconSize(QSize(24, 24))
         self.launch_button.setFixedHeight(50)
         self.launch_button.clicked.connect(self.start_minecraft)
-
         self.progress_bar = QProgressBar()
         self.progress_bar.setFont(self.minecraft_font)
         self.progress_bar.setVisible(False)
         self.progress_bar.setTextVisible(True)
         self.progress_bar.setAlignment(Qt.AlignCenter)
         self.progress_bar.setFixedHeight(30)
-
         self.error_label = QLabel("")
         self.error_label.setFont(self.minecraft_font)
         self.error_label.setObjectName("errorLabel")
         self.error_label.setVisible(False)
         self.error_label.setWordWrap(True)
-
         panel_layout.addWidget(self.version_type_label)
         panel_layout.addLayout(version_type_layout)
         panel_layout.addSpacing(20)
@@ -695,21 +645,18 @@ class MinecraftLauncher(QWidget):
         panel_layout.addWidget(self.error_label)
         panel_layout.addWidget(self.progress_bar)
         panel_layout.addWidget(self.launch_button)
-        
         content_layout.addWidget(main_panel)
-        
+
     def create_tabs_panel(self, content_layout):
         self.tab_widget = QTabWidget()
         self.tab_widget.setFont(self.minecraft_font)
         self.tab_widget.setObjectName("tabWidget")
-
         self.create_news_tab()
         self.create_mods_tab()
         self.create_modpacks_tab()
         self.create_vpn_tab()
         self.create_console_tab()
         self.create_settings_tab()
-
         content_layout.addWidget(self.tab_widget)
 
     def create_settings_tab(self):
@@ -717,15 +664,12 @@ class MinecraftLauncher(QWidget):
         settings_layout = QVBoxLayout(settings_widget)
         settings_layout.setContentsMargins(20, 20, 20, 20)
         settings_layout.setSpacing(15)
-
         self.jvm_args_label = QLabel()
         self.jvm_args_label.setFont(self.subtitle_font)
         self.jvm_args_input = QLineEdit(self.settings.get("jvm_args", ""))
-        
         self.java_path_label = QLabel()
         self.java_path_label.setFont(self.subtitle_font)
         self.java_path_input = QLineEdit(self.settings.get("java_path", ""))
-
         self.lang_label = QLabel()
         self.lang_label.setFont(self.subtitle_font)
         self.language_combo = QComboBox()
@@ -733,23 +677,18 @@ class MinecraftLauncher(QWidget):
         lang_map = {"en": 0, "ru": 1, "ua": 2}
         self.language_combo.setCurrentIndex(lang_map.get(self.current_language, 0))
         self.language_combo.currentTextChanged.connect(self.change_language)
-
         self.accent_color_label = QLabel()
         self.accent_color_label.setFont(self.subtitle_font)
-
         self.color_picker_button = QPushButton()
         self.color_picker_button.clicked.connect(self.open_color_picker)
-
         self.color_preview = QLabel()
         self.color_preview.setObjectName("colorPreview")
         self.color_preview.setFixedSize(33, 33)
         self.update_color_preview()
-
         color_picker_layout = QHBoxLayout()
         color_picker_layout.addWidget(self.color_picker_button)
         color_picker_layout.addWidget(self.color_preview)
         color_picker_layout.addStretch()
-
         self.memory_label = QLabel()
         self.memory_label.setFont(self.subtitle_font)
         self.memory_slider = QSlider(Qt.Horizontal)
@@ -762,7 +701,6 @@ class MinecraftLauncher(QWidget):
         self.memory_feedback_label = QLabel()
         self.memory_feedback_label.setAlignment(Qt.AlignCenter)
         self.update_memory_feedback(self.memory_slider.value())
-        
         self.resolution_label = QLabel()
         self.resolution_label.setFont(self.subtitle_font)
         resolution_layout = QHBoxLayout()
@@ -773,16 +711,13 @@ class MinecraftLauncher(QWidget):
         resolution_layout.addWidget(self.resolution_width_input)
         resolution_layout.addWidget(QLabel("x"))
         resolution_layout.addWidget(self.resolution_height_input)
-
         self.fullscreen_checkbox = QCheckBox()
         self.fullscreen_checkbox.setChecked(self.settings.get("fullscreen", False))
         self.close_launcher_checkbox = QCheckBox()
         self.close_launcher_checkbox.setChecked(self.settings.get("close_launcher", True))
-
         self.advanced_settings_button = QPushButton()
         self.advanced_settings_button.setCheckable(False)
         self.advanced_settings_button.clicked.connect(self.open_advanced_settings)
-        
         settings_layout.addWidget(self.lang_label)
         settings_layout.addWidget(self.language_combo)
         settings_layout.addSpacing(10)
@@ -801,10 +736,8 @@ class MinecraftLauncher(QWidget):
         settings_layout.addSpacing(10)
         settings_layout.addWidget(self.fullscreen_checkbox)
         settings_layout.addWidget(self.close_launcher_checkbox)
-        
         settings_layout.addStretch()
         settings_layout.addWidget(self.advanced_settings_button)
-        
         self.tab_widget.addTab(settings_widget, self.settings_icon, "")
 
     def create_placeholder_tab(self, icon, tab_name):
@@ -826,9 +759,17 @@ class MinecraftLauncher(QWidget):
 
     def create_mods_tab(self):
         self.mods_tab_widget = QWidget()
-        layout = QVBoxLayout(self.mods_tab_widget)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
+        main_layout = QVBoxLayout(self.mods_tab_widget)
+        main_layout.setContentsMargins(0,0,0,0)
+
+        self.mods_sub_tabs = QTabWidget()
+        self.mods_sub_tabs.setObjectName("modsSubTabs")
+        main_layout.addWidget(self.mods_sub_tabs)
+        
+        search_widget = QWidget()
+        search_layout = QVBoxLayout(search_widget)
+        search_layout.setContentsMargins(10, 10, 10, 10)
+        search_layout.setSpacing(10)
 
         filters_layout = QHBoxLayout()
         self.mod_sort_label = QLabel()
@@ -879,12 +820,47 @@ class MinecraftLauncher(QWidget):
         bottom_bar_layout.addLayout(pagination_layout, 1)
         bottom_bar_layout.addWidget(self.open_mods_folder_button)
 
-        layout.addLayout(filters_layout)
-        layout.addWidget(self.mod_search_input)
-        layout.addWidget(self.mod_results_list, 1)
-        layout.addLayout(bottom_bar_layout)
+        search_layout.addLayout(filters_layout)
+        search_layout.addWidget(self.mod_search_input)
+        search_layout.addWidget(self.mod_results_list, 1)
+        search_layout.addLayout(bottom_bar_layout)
+        
+        installed_widget = QWidget()
+        installed_layout = QVBoxLayout(installed_widget)
+        installed_layout.setContentsMargins(10, 10, 10, 10)
+        installed_layout.setSpacing(10)
+
+        installed_top_bar = QHBoxLayout()
+        installed_top_bar.addStretch()
+        
+        self.refresh_installed_button = QPushButton()
+        self.refresh_installed_button.clicked.connect(self.refresh_installed_mods)
+        installed_top_bar.addWidget(self.refresh_installed_button)
+
+        self.installed_mods_list = QListWidget()
+        self.installed_mods_list.setObjectName("modList")
+        self.installed_mods_list.setSpacing(5)
+
+        # New bottom bar for the "Installed" tab
+        installed_bottom_bar = QHBoxLayout()
+        installed_bottom_bar.addStretch()
+        self.open_mods_folder_button_installed = QPushButton()
+        self.open_mods_folder_button_installed.setObjectName("openModsFolderButton")
+        self.open_mods_folder_button_installed.setIcon(self.mods_icon)
+        self.open_mods_folder_button_installed.setIconSize(QSize(28, 28))
+        self.open_mods_folder_button_installed.setFixedSize(44, 44)
+        self.open_mods_folder_button_installed.clicked.connect(self.open_mods_folder)
+        installed_bottom_bar.addWidget(self.open_mods_folder_button_installed)
+
+        installed_layout.addLayout(installed_top_bar)
+        installed_layout.addWidget(self.installed_mods_list, 1)
+        installed_layout.addLayout(installed_bottom_bar)
+
+        self.mods_sub_tabs.addTab(search_widget, self.lang_dict.get("search", "Search"))
+        self.mods_sub_tabs.addTab(installed_widget, self.lang_dict.get("installed", "Installed"))
 
         self.tab_widget.addTab(self.mods_tab_widget, self.mods_icon, "")
+        self.mods_sub_tabs.currentChanged.connect(self.on_mods_sub_tab_changed)
 
     def prev_mod_page(self):
         if self.mod_current_page > 1:
@@ -898,11 +874,9 @@ class MinecraftLauncher(QWidget):
 
     def update_pagination_controls(self):
         self.page_label.setText(f"{self.lang_dict.get('page', 'Page')} {self.mod_current_page}")
-        
         is_prev_enabled = self.mod_current_page > 1
         self.prev_page_button.setEnabled(is_prev_enabled)
         self.prev_page_button.setStyleSheet("opacity: 1.0;" if is_prev_enabled else "opacity: 0.4;")
-
         is_next_enabled = self.mod_current_page * 20 < self.mod_total_hits
         self.next_page_button.setEnabled(is_next_enabled)
         self.next_page_button.setStyleSheet("opacity: 1.0;" if is_next_enabled else "opacity: 0.4;")
@@ -910,35 +884,28 @@ class MinecraftLauncher(QWidget):
     def update_mod_list(self, reset_page=True):
         if self.mod_search_worker and self.mod_search_worker.isRunning():
             return
-        
         if reset_page:
             self.mod_current_page = 1
-
         query = self.mod_search_input.text()
         game_version_full = self.version_combo.currentData(Qt.UserRole)
         if not game_version_full:
             self.log_to_console("Select a game version to search for mods.")
             return
-
         game_version = game_version_full.split('-')[0]
         loader = self.current_version_type
-
         if loader == "vanilla":
             self.mod_results_list.clear()
             item = QListWidgetItem(self.lang_dict["select_mod_loader"])
             item.setTextAlignment(Qt.AlignCenter)
             self.mod_results_list.addItem(item)
             return
-
         sort_option = self.mod_sort_combo.currentData() or "downloads"
         offset = (self.mod_current_page - 1) * 20
-
         self.mod_refresh_button.setEnabled(False)
         self.mod_results_list.clear()
         item = QListWidgetItem(self.lang_dict.get("searching", "Searching..."))
         item.setTextAlignment(Qt.AlignCenter)
         self.mod_results_list.addItem(item)
-        
         self.mod_search_worker = ModSearchWorker(query, game_version, loader, sort_option, self.lang_dict, offset, self)
         self.mod_search_worker.finished.connect(self.on_mod_search_finished)
         self.mod_search_worker.start()
@@ -948,12 +915,10 @@ class MinecraftLauncher(QWidget):
         self.mod_results_list.clear()
         self.mod_list_item_map.clear()
         self.mod_refresh_button.setEnabled(True)
-        
         try:
             game_version = self.version_combo.currentData(Qt.UserRole).split('-')[0]
         except (AttributeError, IndexError):
             game_version = None
-
         if not results:
             item = QListWidgetItem(self.lang_dict["no_mods_found"])
             item.setTextAlignment(Qt.AlignCenter)
@@ -972,31 +937,106 @@ class MinecraftLauncher(QWidget):
                 self.mod_results_list.addItem(item)
                 self.mod_results_list.setItemWidget(item, card_widget)
                 self.mod_list_item_map[project_id] = card_widget
-
         self.update_pagination_controls()
+
+    def refresh_installed_mods(self):
+        if self.local_mods_scanner and self.local_mods_scanner.isRunning():
+            return
+        mods_folder = os.path.join(self.minecraft_directory, "mods")
+        self.installed_mods_list.clear()
+        item = QListWidgetItem(self.lang_dict.get("scanning", "Scanning..."))
+        item.setTextAlignment(Qt.AlignCenter)
+        self.installed_mods_list.addItem(item)
+        
+        # Pass the saved mod data to the scanner
+        installed_data = self.get_installed_mods_info()
+        self.local_mods_scanner = LocalModsScannerWorker(mods_folder, self.lang_dict, installed_data, self)
+        self.local_mods_scanner.finished.connect(self.on_local_mods_scanned)
+        self.local_mods_scanner.start()
+
+    def on_local_mods_scanned(self, mods_list):
+        self.installed_mods_list.clear()
+        if not mods_list:
+            item = QListWidgetItem(self.lang_dict.get("no_local_mods_found", "No mods found in folder."))
+            item.setTextAlignment(Qt.AlignCenter)
+            self.installed_mods_list.addItem(item)
+            return
+        
+        for mod_info in sorted(mods_list, key=lambda x: x['name'].lower()):
+            item = QListWidgetItem()
+            item.setSizeHint(QSize(0, 90)) # Adjusted size for icon
+            widget = InstalledModListItemWidget(
+                mod_info, self.lang_dict, main_font=self.minecraft_font, bold_font=self.subtitle_font
+                )
+            widget.delete_requested.connect(self.handle_mod_delete)
+            widget.toggle_requested.connect(self.handle_mod_toggle)
+            self.installed_mods_list.addItem(item)
+            self.installed_mods_list.setItemWidget(item, widget)
+
+    def handle_mod_delete(self, filepath):
+        filename = os.path.basename(filepath)
+        
+        project_id_to_update = None
+        installed_json = self.get_installed_mods_info()
+        for pid, info in installed_json.items():
+            if info.get("filename") == filename:
+                project_id_to_update = pid
+                break
+
+        try:
+            os.remove(filepath)
+            self.log_to_console(f"Deleted mod file: {filename}")
+            
+            if project_id_to_update:
+                self.remove_installed_mod_info(project_id_to_update)
+                # If the deleted mod is visible in the search list, update its button
+                if project_id_to_update in self.mod_list_item_map:
+                    widget = self.mod_list_item_map[project_id_to_update]
+                    widget.is_installed = False
+                    widget.update_view()
+
+        except OSError as e:
+            self.log_to_console(f"Error deleting file {filename}: {e}")
+        
+        self.refresh_installed_mods()
+
+    def handle_mod_toggle(self, filepath, is_enabled):
+        new_path = None
+        if is_enabled and filepath.endswith(".jar.disabled"):
+            new_path = filepath[:-9]
+        elif not is_enabled and filepath.endswith(".jar"):
+            new_path = filepath + ".disabled"
+
+        if new_path:
+            try:
+                os.rename(filepath, new_path)
+                status = "enabled" if is_enabled else "disabled"
+                self.log_to_console(f"Mod {os.path.basename(new_path)} has been {status}.")
+                self.refresh_installed_mods()
+            except Exception as e:
+                self.log_to_console(f"Error toggling mod {os.path.basename(filepath)}: {e}")
+                self.refresh_installed_mods()
+        else:
+            logging.warning(f"Mod toggle for {os.path.basename(filepath)} skipped: already in desired state.")
 
     def create_modpacks_tab(self):
         widget = QWidget()
         widget.setObjectName("modpacks")
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(10, 10, 10, 10)
-
         self.modpacks_tab_label = QLabel()
         self.modpacks_tab_label.setObjectName("wipLabel")
         self.modpacks_tab_label.setFont(self.subtitle_font)
         self.modpacks_tab_label.setAlignment(Qt.AlignCenter)
-
         self.open_modpacks_folder_button = QPushButton()
         self.open_modpacks_folder_button.setObjectName("openModpacksFolderButton")
         self.open_modpacks_folder_button.setIcon(self.modpacks_icon)
         self.open_modpacks_folder_button.setIconSize(QSize(28, 28))
         self.open_modpacks_folder_button.setFixedSize(44, 44)
         self.open_modpacks_folder_button.clicked.connect(self.open_modpacks_folder)
-
         bottom_bar_layout = QHBoxLayout()
         bottom_bar_layout.addStretch()
         bottom_bar_layout.addWidget(self.open_modpacks_folder_button)
-
         layout.addStretch()
         layout.addWidget(self.modpacks_tab_label)
         layout.addStretch()
@@ -1026,16 +1066,12 @@ class MinecraftLauncher(QWidget):
             docs_path = Path.home() / "Documents" / "Hru Hru Studio" / "Hru Hru Launcher"
             docs_path.mkdir(parents=True, exist_ok=True)
             self.updater_path = docs_path / "updater.exe"
-
             if not getattr(sys, 'frozen', False):
                 logging.warning("Updater preparation skipped: not running from a compiled executable.")
                 return
-
             temp_updater_path = os.path.join(sys._MEIPASS, "updater.exe")
-            
             shutil.copy2(temp_updater_path, self.updater_path)
             logging.info(f"Updater prepared at {self.updater_path}")
-
         except Exception as e:
             logging.error(f"Failed to prepare updater: {e}")
             QMessageBox.critical(self, "Updater Error", f"Failed to prepare the update component:\n{e}")
@@ -1044,7 +1080,6 @@ class MinecraftLauncher(QWidget):
         if manual:
             self.update_status_info["text"] = "Checking for updates..."
             self.update_version_display()
-
         self.update_check_worker = UpdateCheckWorker()
         self.update_check_worker.update_found.connect(lambda v, n: self.on_update_found(v, n, manual))
         self.update_check_worker.up_to_date.connect(lambda: self.on_up_to_date(manual))
@@ -1065,7 +1100,6 @@ class MinecraftLauncher(QWidget):
         if not self.update_check_worker or not self.update_check_worker.isRunning():
             self.check_for_updates(manual=True)
             return
-
         fonts = {"main": self.minecraft_font, "subtitle": self.subtitle_font}
         dialog = UpdateDialog(self.update_status_info, fonts, self)
         dialog.update_requested.connect(self.start_update_process)
@@ -1074,51 +1108,36 @@ class MinecraftLauncher(QWidget):
     def start_update_process(self):
         if not self.latest_version_info:
             return
-
         version = self.latest_version_info["version"]
         try:
             if not self.updater_path or not self.updater_path.exists():
                 raise FileNotFoundError("updater.exe not found. Please try restarting the launcher.")
-
             download_url = DOWNLOAD_URL_TEMPLATE.format(tag=version, filename="HruHruLauncher.exe")
             main_app_path = sys.executable
-            
             font_path = os.path.join(get_assets_dir(), "Minecraftia.ttf")
-
             creation_flags = subprocess.DETACHED_PROCESS if sys.platform == 'win32' else 0
             subprocess.Popen([str(self.updater_path), download_url, main_app_path, font_path], creationflags=creation_flags)
-            
             sys.exit(0)
-
         except Exception as e:
             self.on_update_error(f"Failed to start updater: {e}", manual=True)
             QMessageBox.critical(self, "Updater Error", f"Failed to start the updater:\n{e}")
 
     def on_update_found(self, version, notes, manual):
         self.latest_version_info = {"version": version, "notes": notes}
-        self.update_status_info = {
-            "text": f"Update available: {version}",
-            "is_update_available": True
-        }
+        self.update_status_info = {"text": f"Update available: {version}", "is_update_available": True}
         self.update_version_display()
         if manual: self.show_update_dialog()
 
     def on_up_to_date(self, manual):
         self.latest_version_info = None
-        self.update_status_info = {
-            "text": "You have the latest version",
-            "is_update_available": False
-        }
+        self.update_status_info = {"text": "You have the latest version", "is_update_available": False}
         self.update_version_display()
         if manual: self.show_update_dialog()
 
     def on_update_error(self, error_text, manual):
         logging.error(f"Update error: {error_text}")
         self.latest_version_info = None
-        self.update_status_info = {
-            "text": "Error checking for updates",
-            "is_update_available": False 
-        }
+        self.update_status_info = {"text": "Error checking for updates", "is_update_available": False}
         self.update_version_display()
         if manual: self.show_update_dialog()
 
@@ -1155,22 +1174,14 @@ class MinecraftLauncher(QWidget):
 
     def save_settings(self):
         self.settings['window_geometry'] = self.saveGeometry().toBase64().data().decode('utf-8')
-
         current_settings = {
-            "language": self.current_language,
-            "memory": self.memory_slider.value(),
-            "fullscreen": self.fullscreen_checkbox.isChecked(),
-            "close_launcher": self.close_launcher_checkbox.isChecked(),
-            "last_username": self.user_input.text(),
-            "jvm_args": self.jvm_args_input.text(),
-            "java_path": self.java_path_input.text(),
-            "resolution_width": self.resolution_width_input.text(),
-            "resolution_height": self.resolution_height_input.text(),
-            "version_type": self.current_version_type,
-            "last_version": self.version_combo.currentData(Qt.UserRole),
-            "accent_color": self.current_accent_color,
-            "last_tab": self.tab_widget.currentIndex(),
-            "window_geometry": self.settings.get('window_geometry')
+            "language": self.current_language, "memory": self.memory_slider.value(),
+            "fullscreen": self.fullscreen_checkbox.isChecked(), "close_launcher": self.close_launcher_checkbox.isChecked(),
+            "last_username": self.user_input.text(), "jvm_args": self.jvm_args_input.text(),
+            "java_path": self.java_path_input.text(), "resolution_width": self.resolution_width_input.text(),
+            "resolution_height": self.resolution_height_input.text(), "version_type": self.current_version_type,
+            "last_version": self.version_combo.currentData(Qt.UserRole), "accent_color": self.current_accent_color,
+            "last_tab": self.tab_widget.currentIndex(), "window_geometry": self.settings.get('window_geometry')
         }
         client_token = self.settings.get("clientToken")
         if client_token:
@@ -1208,6 +1219,10 @@ class MinecraftLauncher(QWidget):
         self.tab_widget.setTabText(3, lang["vpn"])
         self.tab_widget.setTabText(4, lang["console"])
         self.tab_widget.setTabText(5, lang["settings"])
+        if hasattr(self, 'mods_sub_tabs'):
+            self.mods_sub_tabs.setTabText(0, lang.get("search", "Search"))
+            self.mods_sub_tabs.setTabText(1, lang.get("installed", "Installed"))
+            self.refresh_installed_button.setText(lang.get("refresh", "Refresh"))
         self.lang_label.setText(lang["language"])
         self.accent_color_label.setText(lang["accent_color"])
         self.color_picker_button.setText(lang["choose_color"])
@@ -1222,13 +1237,13 @@ class MinecraftLauncher(QWidget):
         self.prev_page_button.setToolTip(lang.get("prev_page", "Previous"))
         self.next_page_button.setToolTip(lang.get("next_page", "Next"))
         self.page_label.setText(f"{lang.get('page', 'Page')} {self.mod_current_page}")
-        
         self.version_type_label.setText(lang["version_type"])
         self.vanilla_radio.setText(lang["vanilla"])
         self.forge_radio.setText(lang["forge"])
         self.fabric_radio.setText(lang["fabric"])
         self.update_memory_feedback(self.memory_slider.value())
         self.open_mods_folder_button.setToolTip(lang["open_mods_folder"])
+        self.open_mods_folder_button_installed.setToolTip(lang["open_mods_folder"])
         self.open_modpacks_folder_button.setToolTip(lang["open_modpacks_folder"])
         self.modpacks_tab_label.setText(lang["wip_notice"])
         self.mod_search_input.setPlaceholderText(lang["search_mods_placeholder"])
@@ -1266,20 +1281,16 @@ class MinecraftLauncher(QWidget):
         if self.version_loader and self.version_loader.isRunning():
             self.version_loader.quit()
             self.version_loader.wait()
-
         self.version_combo.clear()
         self.version_combo.setEnabled(False)
         lang = resources.LANGUAGES[self.current_language]
         self.version_combo.addItem(lang["loading_versions"])
-
         class VersionLoader(QThread):
             finished = Signal(list)
             error = Signal(str)
-
             def __init__(self, v_type, parent=None):
                 super().__init__(parent)
                 self.v_type = v_type
-
             def run(self):
                 try:
                     version_list = []
@@ -1293,7 +1304,6 @@ class MinecraftLauncher(QWidget):
                     self.finished.emit(version_list)
                 except Exception as e:
                     self.error.emit(str(e))
-
         self.version_loader = VersionLoader(version_type, self)
         self.version_loader.finished.connect(self.on_versions_loaded)
         self.version_loader.error.connect(self.on_version_load_error)
@@ -1302,19 +1312,15 @@ class MinecraftLauncher(QWidget):
     def on_versions_loaded(self, version_list):
         self.mod_results_list.clear()
         self.mod_search_input.clear()
-
         self.version_combo.clear()
         installed_ids = {v['id'] for v in minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_directory)}
-
         model = QStandardItemModel(self)
         for version_id in version_list:
             display_text = version_id
             if self.current_version_type in ["forge", "fabric"]:
                 display_text = version_id.split('-')[0]
-
             item = QStandardItem(display_text)
             item.setData(version_id, Qt.UserRole)
-
             is_installed = False
             if self.current_version_type == 'forge':
                 mc_ver, forge_ver_build = version_id.split('-', 1)
@@ -1329,23 +1335,18 @@ class MinecraftLauncher(QWidget):
                         break
             else:
                 is_installed = version_id in installed_ids
-
             if is_installed:
                 item.setIcon(self.installed_icon)
             else:
                 item.setData(QColor("#888888"), Qt.ForegroundRole)
-
             model.appendRow(item)
-
         self.version_combo.setModel(model)
-
         last_version = self.settings.get("last_version")
         if last_version:
             for i in range(model.rowCount()):
                 if model.item(i).data(Qt.UserRole) == last_version:
                     self.version_combo.setCurrentIndex(i)
                     break
-
         self.version_combo.setEnabled(True)
 
     def on_version_load_error(self, error_msg):
@@ -1357,38 +1358,37 @@ class MinecraftLauncher(QWidget):
 
     def on_tab_changed(self, index):
         if self.tab_widget.widget(index) == self.mods_tab_widget:
+            self.on_mods_sub_tab_changed(self.mods_sub_tabs.currentIndex())
+
+    def on_mods_sub_tab_changed(self, index):
+        if index == 0: # Search tab
             if self.mod_results_list.count() == 0:
                 self.mod_search_input.clear()
                 self.update_mod_list()
+        elif index == 1: # Installed tab
+            self.refresh_installed_mods()
 
     def start_mod_download(self, mod_data):
         project_id = mod_data.get("project_id")
         logging.info(f"Received request to install mod: project_id='{project_id}', title='{mod_data.get('title')}'")
-
         if project_id in self.mod_download_workers and self.mod_download_workers[project_id].isRunning():
             logging.warning(f"Download for project_id='{project_id}' is already in progress.")
             return
-
         self.log_to_console(f"Starting download process for '{mod_data.get('title')}'...")
         logging.info(f"Starting download process for '{mod_data.get('title')}'...")
-
         game_version_full = self.version_combo.currentData(Qt.UserRole)
         if not game_version_full:
             self.log_to_console("Error: no game version selected.")
             logging.error("Failed to start download: no game version selected.")
             return
-            
         game_version = game_version_full.split('-')[0]
         loader = self.current_version_type
         logging.info(f"Parameters for download: version='{game_version}', loader='{loader}'")
-
         worker = ModDownloadWorker(project_id, game_version, loader, self.minecraft_directory, self.lang_dict, self)
-        
         worker.progress.connect(self.on_mod_download_progress)
         worker.finished.connect(self.on_mod_download_finished)
         worker.mod_info_signal.connect(self.add_installed_mod_info)
         worker.finished.connect(worker.deleteLater)
-
         self.mod_download_workers[project_id] = worker
         worker.start()
         logging.info(f"Thread for download project_id='{project_id}' started successfully.")
@@ -1406,10 +1406,8 @@ class MinecraftLauncher(QWidget):
     def on_mod_download_finished(self, project_id, success, message):
         logging.info(f"Received 'finished' signal for project_id='{project_id}', success={success}, message='{message}'")
         self.log_to_console(message)
-
         if project_id in self.mod_download_workers:
             del self.mod_download_workers[project_id]
-
         if project_id in self.mod_list_item_map:
             card_widget = self.mod_list_item_map[project_id]
             if success:
@@ -1462,7 +1460,6 @@ class MinecraftLauncher(QWidget):
         project_id = mod_data.get("project_id")
         installed_mods = self.get_installed_mods_info()
         logging.info(f"Request to delete mod {project_id}")
-
         if project_id in installed_mods:
             file_name = installed_mods[project_id].get("filename")
             if file_name:
@@ -1481,9 +1478,7 @@ class MinecraftLauncher(QWidget):
             else:
                 self.log_to_console(f"Record for mod '{mod_data.get('title')}' is missing a filename.")
                 logging.warning(f"'filename' is missing in installed_mods.json for {project_id}.")
-            
             self.remove_installed_mod_info(project_id)
-            
             if project_id in self.mod_list_item_map:
                 card_widget = self.mod_list_item_map[project_id]
                 card_widget.is_installed = False
@@ -1495,49 +1490,36 @@ class MinecraftLauncher(QWidget):
     def start_minecraft(self):
         if self.worker and self.worker.isRunning():
             return
-
         username = self.user_input.text()
         lang = resources.LANGUAGES[self.current_language]
         if not username:
             self.error_label.setText(lang["enter_username_error"])
             self.error_label.setVisible(True)
             return
-
         self.launch_button.setEnabled(False)
         self.launch_button.setText(lang["launching"])
         self.progress_bar.setVisible(True)
         self.error_label.setVisible(False)
         self.tab_widget.setCurrentIndex(4)
-
         jvm_args_list = self.jvm_args_input.text().split()
-        
         options = {
             "executablePath": self.java_path_input.text() or None,
             "jvmArguments": jvm_args_list,
             "resolutionWidth": self.resolution_width_input.text(),
             "resolutionHeight": self.resolution_height_input.text(),
         }
-
         selected_version = self.version_combo.currentData(Qt.UserRole)
         if not selected_version:
             self.log_to_console("Ошибка: Версия игры не выбрана!")
             self.on_launch_finished("error", {"type": "generic", "message": "Версия игры не выбрана."})
             return
-            
         mod_loader = self.current_version_type if self.current_version_type != "vanilla" else None
-
         self.worker = MinecraftWorker(
-            mc_version=selected_version,
-            username=username,
-            minecraft_dir=self.minecraft_directory,
-            client_token=self.settings.get("clientToken"),
-            memory_gb=self.memory_slider.value(),
-            fullscreen=self.fullscreen_checkbox.isChecked(),
-            options=options,
-            lang=self.current_language,
-            mod_loader=mod_loader,
+            mc_version=selected_version, username=username, minecraft_dir=self.minecraft_directory,
+            client_token=self.settings.get("clientToken"), memory_gb=self.memory_slider.value(),
+            fullscreen=self.fullscreen_checkbox.isChecked(), options=options,
+            lang=self.current_language, mod_loader=mod_loader,
         )
-
         self.worker.progress_update.connect(self.update_progress)
         self.worker.log_message.connect(self.log_to_console)
         self.worker.finished.connect(self.on_launch_finished)
@@ -1553,27 +1535,22 @@ class MinecraftLauncher(QWidget):
         self.launch_button.setEnabled(True)
         self.launch_button.setText(lang["launch"])
         self.progress_bar.setVisible(False)
-
         if result != "success" and details:
             error_type = details.get("type")
             self.log_to_console(f"Получена ошибка типа: {error_type}")
-
             if error_type == "file_corruption":
                 version_id = details.get("version_id", "выбранной")
                 title = lang.get("error_file_corruption_title")
                 desc = lang.get("error_file_corruption_desc").format(version_id=version_id)
                 fix = lang.get("error_file_corruption_fix")
-                
                 dialog = FixErrorDialog(title, desc, fix, lang, self)
                 if dialog.exec() == QDialog.Accepted:
                     self.reinstall_version(version_id)
-
             elif error_type == "invalid_java_path":
                 if self.java_path_input.text():
                     title = lang.get("error_java_path_title")
                     desc = lang.get("error_java_path_desc")
                     fix = lang.get("error_java_path_fix")
-                    
                     dialog = FixErrorDialog(title, desc, fix, lang, self)
                     if dialog.exec() == QDialog.Accepted:
                         self.java_path_input.setText("")
@@ -1587,26 +1564,21 @@ class MinecraftLauncher(QWidget):
                     dialog.fix_button.setVisible(False)
                     dialog.cancel_button.setText("OK")
                     dialog.exec()
-            
             elif error_type == "invalid_jvm_argument":
                 title = lang.get("error_jvm_args_title")
                 desc = lang.get("error_jvm_args_desc")
                 fix = lang.get("error_jvm_args_fix")
-                
                 dialog = FixErrorDialog(title, desc, fix, lang, self)
                 if dialog.exec() == QDialog.Accepted:
                     self.jvm_args_input.setText("")
                     self.save_settings()
                     self.start_minecraft()
-
             else:
                 self.error_label.setText(details.get("message", lang.get("error_occurred")))
                 self.error_label.setVisible(True)
-
         elif result != "success":
                 self.error_label.setText(result)
                 self.error_label.setVisible(True)
-
         if self.close_launcher_checkbox.isChecked() and result == "success":
             self.close()
 
@@ -1617,19 +1589,13 @@ class MinecraftLauncher(QWidget):
             try:
                 shutil.rmtree(version_path)
                 self.log_to_console(f"Папка версии '{version_id}' успешно удалена.")
-                QMessageBox.information(self, "Успех",
-                    f"Файлы версии '{version_id}' были удалены. Нажмите 'Играть', чтобы скачать их заново.",
-                    QMessageBox.Ok)
+                QMessageBox.information(self, "Успех", f"Файлы версии '{version_id}' были удалены. Нажмите 'Играть', чтобы скачать их заново.", QMessageBox.Ok)
                 self.populate_versions(self.current_version_type)
             except Exception as e:
                 self.log_to_console(f"Не удалось удалить папку версии: {e}")
-                QMessageBox.critical(self, "Ошибка",
-                    f"Не удалось удалить папку '{version_path}'.\nПроверьте, не запущена ли игра, или удалите ее вручную.",
-                    QMessageBox.Ok)
+                QMessageBox.critical(self, "Ошибка", f"Не удалось удалить папку '{version_path}'.\nПроверьте, не запущена ли игра, или удалите ее вручную.", QMessageBox.Ok)
         else:
-                QMessageBox.warning(self, "Внимание",
-                    "Папка версии и так не найдена. Нажмите 'Играть' для установки.",
-                    QMessageBox.Ok)
+                QMessageBox.warning(self, "Внимание", "Папка версии и так не найдена. Нажмите 'Играть' для установки.", QMessageBox.Ok)
 
     def log_to_console(self, message):
         self.console_output.append(message)
@@ -1641,13 +1607,11 @@ class MinecraftLauncher(QWidget):
     def update_memory_feedback(self, value):
         self.memory_value_label.setText(f"{value} GB")
         lang = resources.LANGUAGES[self.current_language]
-
         if value <= 1: text, color = lang["mem_feedback_risky"], "#E23D28"
         elif value <= 3: text, color = lang["mem_feedback_low"], "#F8B339"
         elif value <= 6: text, color = lang["mem_feedback_optimal"], self.current_accent_color
         elif value <= 8: text, color = lang["mem_feedback_good"], self.current_accent_color
         else: text, color = lang["mem_feedback_excessive"], "#F8B339"
-
         self.memory_feedback_label.setText(text)
         self.memory_feedback_label.setStyleSheet(f"color: {color}; font-weight: bold;")
         
@@ -1676,8 +1640,7 @@ class MinecraftLauncher(QWidget):
                 worker.quit()
                 worker.wait(500)
         self.mod_download_workers.clear()
-        
-        for worker_attr in ['worker', 'version_loader', 'mod_search_worker', 'update_check_worker']:
+        for worker_attr in ['worker', 'version_loader', 'mod_search_worker', 'update_check_worker', 'local_mods_scanner']:
             worker = getattr(self, worker_attr, None)
             if worker and worker.isRunning():
                 worker.quit()
