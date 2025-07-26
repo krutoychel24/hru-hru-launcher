@@ -47,7 +47,7 @@ class FixErrorDialog(QDialog):
         self.fade_in_animation.setStartValue(0)
         self.fade_in_animation.setEndValue(1)
         self.fade_in_animation.setEasingCurve(QEasingCurve.OutCubic)
-
+        
     def showEvent(self, event):
         super().showEvent(event)
         self.fade_in_animation.start()
@@ -162,16 +162,8 @@ class UpdateDialog(QDialog):
         self.fonts = fonts
         
         self.icons = {
-            "check": b"""
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#78f542" viewBox="0 0 256 256">
-                <path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"></path>
-            </svg>
-            """,
-            "download": b"""
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#ff5555" viewBox="0 0 256 256">
-                <path d="M208,152v48a8,8,0,0,1-8,8H56a8,8,0,0,1-8-8V152a8,8,0,0,1,16,0v40H192V152a8,8,0,0,1,16,0Zm-85.66,5.66a8,8,0,0,0,11.32,0l48-48a8,8,0,0,0-11.32-11.32L136,132.69V40a8,8,0,0,0-16,0v92.69L85.66,98.34a8,8,0,0,0-11.32,11.32Z"></path>
-            </svg>
-            """
+            "check": b"""<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#78f542" viewBox="0 0 256 256"><path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"></path></svg>""",
+            "download": b"""<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#ff5555" viewBox="0 0 256 256"><path d="M208,152v48a8,8,0,0,1-8,8H56a8,8,0,0,1-8-8V152a8,8,0,0,1,16,0v40H192V152a8,8,0,0,1,16,0Zm-85.66,5.66a8,8,0,0,0,11.32,0l48-48a8,8,0,0,0-11.32-11.32L136,132.69V40a8,8,0,0,0-16,0v92.69L85.66,98.34a8,8,0,0,0-11.32,11.32Z"></path></svg>"""
         }
         
         self.init_ui()
@@ -246,29 +238,13 @@ class UpdateDialog(QDialog):
     def set_styles(self):
         accent = self.parent().current_accent_color if self.parent() else "#1DB954"
         self.setStyleSheet(f"""
-            #updateDialogContainer {{
-                background-color: #282a36;
-                border-radius: 10px;
-                border: 1px solid #44475a;
-            }}
-            #updateDialogTitle {{
-                color: #f8f8f2;
-            }}
-            #updateDialogMessage {{
-                color: #bd93f9;
-            }}
+            #updateDialogContainer {{ background-color: #282a36; border-radius: 10px; border: 1px solid #44475a; }}
+            #updateDialogTitle {{ color: #f8f8f2; }}
+            #updateDialogMessage {{ color: #bd93f9; }}
             QPushButton {{ outline: none; }}
-            #updateButton, #closeButton {{
-                color: #f8f8f2;
-                padding: 8px 16px;
-                border-radius: 5px;
-            }}
-            #updateButton {{
-                background-color: {accent};
-            }}
-            #closeButton {{
-                background-color: #6272a4;
-            }}
+            #updateButton, #closeButton {{ color: #f8f8f2; padding: 8px 16px; border-radius: 5px; }}
+            #updateButton {{ background-color: {accent}; }}
+            #closeButton {{ background-color: #6272a4; }}
         """)
 
 class AdvancedSettingsDialog(QDialog):
@@ -366,19 +342,24 @@ class UpdateCheckWorker(QThread):
             self.error_occurred.emit(f"An error occurred while checking for updates: {e}")
 
 class ModSearchWorker(QThread):
-    finished = Signal(list)
-    def __init__(self, query, game_version, loader, sort_option, parent=None):
+    finished = Signal(list, int)
+
+    def __init__(self, query, game_version, loader, sort_option, lang_dict, offset, parent=None):
         super().__init__(parent)
         self.query = query
         self.game_version = game_version
         self.loader = loader
         self.sort_option = sort_option
+        self.lang_dict = lang_dict
+        self.offset = offset
 
     def run(self):
-        logging.info(f"Starting mod search: query='{self.query}', version='{self.game_version}', loader='{self.loader}', sort='{self.sort_option}'")
-        results = mod_manager.search_mods(self.query, self.game_version, self.loader, self.sort_option)
-        logging.info(f"Mod search finished, found {len(results)} results.")
-        self.finished.emit(results)
+        logging.info(f"Starting mod search: query='{self.query}', offset='{self.offset}'")
+        hits, total_hits = mod_manager.search_mods(
+            self.query, self.game_version, self.loader, self.lang_dict, self.sort_option, self.offset
+        )
+        logging.info(f"Mod search finished, found {len(hits)} results out of {total_hits}.")
+        self.finished.emit(hits, total_hits)
 
 
 class ModDownloadWorker(QThread):
@@ -460,6 +441,8 @@ class MinecraftLauncher(QWidget):
         self.update_check_worker = None
         self.mod_download_workers = {}
         self.mod_list_item_map = {}
+        self.mod_current_page = 1
+        self.mod_total_hits = 0
         self.updater_path = None
         self.latest_version_info = None
         
@@ -492,6 +475,8 @@ class MinecraftLauncher(QWidget):
         self.fade_in_animation.setStartValue(0)
         self.fade_in_animation.setEndValue(1)
         self.fade_in_animation.setEasingCurve(QEasingCurve.OutCubic)
+        
+        self.update_pagination_controls()
 
     def init_fonts(self):
         assets_dir = get_assets_dir()
@@ -526,7 +511,6 @@ class MinecraftLauncher(QWidget):
         self.installed_icon = create_icon(resources.INSTALLED_ICON_SVG)
         self.folder_icon = create_icon(base64.b64decode("PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iI2Y4ZjhmMiIgdmlld0JveD0iMCAwIDI1NiAyNTYiPjxwYXRoIGQ9Ik0yMjQsODhINzJBNzEuNzYsNzEuNzYsMCwwLDAsMTYsMTUyVjE4NGE4LDgsMCwwLDAsOCw4SDIyNGE4LDgsMCwwLDAsOC04Vjk2QTgsOCwwLDAsMCwyMjQsODhaTTQ4LDE1MkEyMy44MiwyMy44MiwwLDAsMSw3MiwxMjhoMTQ0djI0SDcyQTI0LDI0LDAsMCwxLDQ4LDE1MlpNMjE2LDEwNEgxODguMzhhNDAsNDAsMCwwLDAtNzYuNzYsMEg3MkEyMy44MiwyMy44MiwwLDAsMSw0OCwxMjguMzlWMTI4YTU1Ljc1LDU1Ljc1LDAsMCwxLC43Ny05LjA4bDEzLjE0LTQ4LjYyQTgsOCwwLDAsMSw3MCw2NEgyMDhhOCw4LDAsMCwxLDcuMSw0LjYzbDE4LjgxLDQ3QzIzOS40MSwxMjEuMjgsMjMyLDEyOCwyMjQsMTI4YTcuNzgsNy43OCwwLDAsMC0yLjE4LS4yN1YxMDRaIj48L3BhdGg+PC9zdmc+"))
         
-
         assets_dir = get_assets_dir()
         icon_path = os.path.join(assets_dir, "launcher-icon.ico")
         if os.path.exists(icon_path):
@@ -746,7 +730,7 @@ class MinecraftLauncher(QWidget):
         self.lang_label.setFont(self.subtitle_font)
         self.language_combo = QComboBox()
         self.language_combo.addItems(["English", "Русский", "Українська"])
-        lang_map = {"en": 0, "ru": 1, "uk": 2}
+        lang_map = {"en": 0, "ru": 1, "ua": 2}
         self.language_combo.setCurrentIndex(lang_map.get(self.current_language, 0))
         self.language_combo.currentTextChanged.connect(self.change_language)
 
@@ -850,7 +834,7 @@ class MinecraftLauncher(QWidget):
         self.mod_sort_label = QLabel()
         self.mod_sort_combo = QComboBox()
         self.mod_refresh_button = QPushButton()
-        self.mod_refresh_button.clicked.connect(self.update_mod_list)
+        self.mod_refresh_button.clicked.connect(lambda: self.update_mod_list(reset_page=True))
         
         filters_layout.addWidget(self.mod_sort_label)
         filters_layout.addWidget(self.mod_sort_combo)
@@ -860,12 +844,30 @@ class MinecraftLauncher(QWidget):
         self.mod_search_input = QLineEdit()
         self.mod_search_input.setObjectName("modSearchInput")
         self.mod_search_input.setFixedHeight(35)
-        self.mod_search_input.returnPressed.connect(self.update_mod_list)
+        self.mod_search_input.returnPressed.connect(lambda: self.update_mod_list(reset_page=True))
 
         self.mod_results_list = QListWidget()
         self.mod_results_list.setObjectName("modList")
         self.mod_results_list.setSpacing(5)
 
+        pagination_layout = QHBoxLayout()
+        self.prev_page_button = QPushButton("<")
+        self.prev_page_button.setFixedSize(35, 35)
+        self.prev_page_button.clicked.connect(self.prev_mod_page)
+        
+        self.page_label = QLabel("Page 1")
+        self.page_label.setAlignment(Qt.AlignCenter)
+        
+        self.next_page_button = QPushButton(">")
+        self.next_page_button.setFixedSize(35, 35)
+        self.next_page_button.clicked.connect(self.next_mod_page)
+
+        pagination_layout.addStretch()
+        pagination_layout.addWidget(self.prev_page_button)
+        pagination_layout.addWidget(self.page_label)
+        pagination_layout.addWidget(self.next_page_button)
+        pagination_layout.addStretch()
+        
         self.open_mods_folder_button = QPushButton()
         self.open_mods_folder_button.setObjectName("openModsFolderButton")
         self.open_mods_folder_button.setIcon(self.mods_icon)
@@ -874,15 +876,104 @@ class MinecraftLauncher(QWidget):
         self.open_mods_folder_button.clicked.connect(self.open_mods_folder)
 
         bottom_bar_layout = QHBoxLayout()
-        bottom_bar_layout.addStretch()
+        bottom_bar_layout.addLayout(pagination_layout, 1)
         bottom_bar_layout.addWidget(self.open_mods_folder_button)
 
         layout.addLayout(filters_layout)
         layout.addWidget(self.mod_search_input)
-        layout.addWidget(self.mod_results_list)
+        layout.addWidget(self.mod_results_list, 1)
         layout.addLayout(bottom_bar_layout)
 
         self.tab_widget.addTab(self.mods_tab_widget, self.mods_icon, "")
+
+    def prev_mod_page(self):
+        if self.mod_current_page > 1:
+            self.mod_current_page -= 1
+            self.update_mod_list(reset_page=False)
+
+    def next_mod_page(self):
+        if self.mod_current_page * 20 < self.mod_total_hits:
+            self.mod_current_page += 1
+            self.update_mod_list(reset_page=False)
+
+    def update_pagination_controls(self):
+        self.page_label.setText(f"{self.lang_dict.get('page', 'Page')} {self.mod_current_page}")
+        
+        is_prev_enabled = self.mod_current_page > 1
+        self.prev_page_button.setEnabled(is_prev_enabled)
+        self.prev_page_button.setStyleSheet("opacity: 1.0;" if is_prev_enabled else "opacity: 0.4;")
+
+        is_next_enabled = self.mod_current_page * 20 < self.mod_total_hits
+        self.next_page_button.setEnabled(is_next_enabled)
+        self.next_page_button.setStyleSheet("opacity: 1.0;" if is_next_enabled else "opacity: 0.4;")
+
+    def update_mod_list(self, reset_page=True):
+        if self.mod_search_worker and self.mod_search_worker.isRunning():
+            return
+        
+        if reset_page:
+            self.mod_current_page = 1
+
+        query = self.mod_search_input.text()
+        game_version_full = self.version_combo.currentData(Qt.UserRole)
+        if not game_version_full:
+            self.log_to_console("Select a game version to search for mods.")
+            return
+
+        game_version = game_version_full.split('-')[0]
+        loader = self.current_version_type
+
+        if loader == "vanilla":
+            self.mod_results_list.clear()
+            item = QListWidgetItem(self.lang_dict["select_mod_loader"])
+            item.setTextAlignment(Qt.AlignCenter)
+            self.mod_results_list.addItem(item)
+            return
+
+        sort_option = self.mod_sort_combo.currentData() or "downloads"
+        offset = (self.mod_current_page - 1) * 20
+
+        self.mod_refresh_button.setEnabled(False)
+        self.mod_results_list.clear()
+        item = QListWidgetItem(self.lang_dict.get("searching", "Searching..."))
+        item.setTextAlignment(Qt.AlignCenter)
+        self.mod_results_list.addItem(item)
+        
+        self.mod_search_worker = ModSearchWorker(query, game_version, loader, sort_option, self.lang_dict, offset, self)
+        self.mod_search_worker.finished.connect(self.on_mod_search_finished)
+        self.mod_search_worker.start()
+
+    def on_mod_search_finished(self, results, total_hits):
+        self.mod_total_hits = total_hits
+        self.mod_results_list.clear()
+        self.mod_list_item_map.clear()
+        self.mod_refresh_button.setEnabled(True)
+        
+        try:
+            game_version = self.version_combo.currentData(Qt.UserRole).split('-')[0]
+        except (AttributeError, IndexError):
+            game_version = None
+
+        if not results:
+            item = QListWidgetItem(self.lang_dict["no_mods_found"])
+            item.setTextAlignment(Qt.AlignCenter)
+            self.mod_results_list.addItem(item)
+        else:
+            installed_mods = self.get_installed_mods_info()
+            for mod_data in results:
+                project_id = mod_data.get("project_id")
+                is_installed = project_id in installed_mods
+                item = QListWidgetItem()
+                item.setSizeHint(QSize(0, 84))
+                card_widget = ModListItemWidget(mod_data, self.lang_dict, is_installed, game_version)
+                card_widget.install_requested.connect(self.start_mod_download)
+                card_widget.page_requested.connect(self.open_mod_page)
+                card_widget.delete_requested.connect(self.delete_mod)
+                self.mod_results_list.addItem(item)
+                self.mod_results_list.setItemWidget(item, card_widget)
+                self.mod_list_item_map[project_id] = card_widget
+
+        self.update_pagination_controls()
 
     def create_modpacks_tab(self):
         widget = QWidget()
@@ -1105,7 +1196,7 @@ class MinecraftLauncher(QWidget):
         self.on_tab_changed(self.tab_widget.currentIndex())
 
     def update_ui_text(self):
-        lang = resources.LANGUAGES[self.current_language]
+        lang = self.lang_dict
         self.title_label.setText(lang["title"])
         self.version_label.setText(lang["version"])
         self.username_label.setText(lang["username"])
@@ -1128,6 +1219,9 @@ class MinecraftLauncher(QWidget):
         self.resolution_label.setText(lang.get("resolution", "Game Resolution"))
         self.jvm_args_label.setText(lang.get("jvm_args_custom", "Custom JVM Arguments"))
         self.java_path_label.setText(lang.get("java_path", "Java Executable Path"))
+        self.prev_page_button.setToolTip(lang.get("prev_page", "Previous"))
+        self.next_page_button.setToolTip(lang.get("next_page", "Next"))
+        self.page_label.setText(f"{lang.get('page', 'Page')} {self.mod_current_page}")
         
         self.version_type_label.setText(lang["version_type"])
         self.vanilla_radio.setText(lang["vanilla"])
@@ -1260,78 +1354,6 @@ class MinecraftLauncher(QWidget):
         self.error_label.setText(f"Failed to load version list: {error_msg}")
         self.error_label.setVisible(True)
         self.log_to_console(f"Failed to load version list: {error_msg}")
-
-    def update_mod_list(self):
-        if self.mod_search_worker and self.mod_search_worker.isRunning():
-            return
-
-        query = self.mod_search_input.text()
-        lang = resources.LANGUAGES[self.current_language]
-
-        game_version_full = self.version_combo.currentData(Qt.UserRole)
-        if not game_version_full:
-            self.log_to_console("Select a game version to search for mods.")
-            return
-
-        game_version = game_version_full.split('-')[0]
-        loader = self.current_version_type
-
-        if loader == "vanilla":
-            self.mod_results_list.clear()
-            item = QListWidgetItem(lang["select_mod_loader"])
-            item.setTextAlignment(Qt.AlignCenter)
-            self.mod_results_list.addItem(item)
-            return
-
-        if self.mod_search_worker and self.mod_search_worker.isRunning():
-            try:
-                self.mod_search_worker.finished.disconnect(self.on_mod_search_finished)
-            except (TypeError, RuntimeError):
-                pass
-        
-        sort_option = self.mod_sort_combo.currentData()
-        if not sort_option:
-            sort_option = "downloads"
-
-        self.mod_refresh_button.setEnabled(False)
-        self.mod_results_list.clear()
-        item = QListWidgetItem(lang.get("searching", "Searching..."))
-        item.setTextAlignment(Qt.AlignCenter)
-        self.mod_results_list.addItem(item)
-
-        self.mod_search_worker = ModSearchWorker(query, game_version, loader, sort_option, self)
-        self.mod_search_worker.finished.connect(self.on_mod_search_finished)
-        self.mod_search_worker.start()
-
-    def on_mod_search_finished(self, results):
-        self.mod_results_list.clear()
-        self.mod_list_item_map.clear()
-        self.mod_refresh_button.setEnabled(True)
-        lang = resources.LANGUAGES[self.current_language]
-
-        if not results:
-            item = QListWidgetItem(lang["no_mods_found"])
-            item.setTextAlignment(Qt.AlignCenter)
-            self.mod_results_list.addItem(item)
-            return
-
-        installed_mods = self.get_installed_mods_info()
-
-        for mod_data in results:
-            project_id = mod_data.get("project_id")
-            is_installed = project_id in installed_mods
-
-            item = QListWidgetItem()
-            item.setSizeHint(QSize(0, 84))
-
-            card_widget = ModListItemWidget(mod_data, lang, is_installed)
-            card_widget.install_requested.connect(self.start_mod_download)
-            card_widget.page_requested.connect(self.open_mod_page)
-            card_widget.delete_requested.connect(self.delete_mod)
-
-            self.mod_results_list.addItem(item)
-            self.mod_results_list.setItemWidget(item, card_widget)
-            self.mod_list_item_map[project_id] = card_widget
 
     def on_tab_changed(self, index):
         if self.tab_widget.widget(index) == self.mods_tab_widget:
@@ -1582,8 +1604,8 @@ class MinecraftLauncher(QWidget):
                 self.error_label.setVisible(True)
 
         elif result != "success":
-             self.error_label.setText(result)
-             self.error_label.setVisible(True)
+                self.error_label.setText(result)
+                self.error_label.setVisible(True)
 
         if self.close_launcher_checkbox.isChecked() and result == "success":
             self.close()
@@ -1605,9 +1627,9 @@ class MinecraftLauncher(QWidget):
                     f"Не удалось удалить папку '{version_path}'.\nПроверьте, не запущена ли игра, или удалите ее вручную.",
                     QMessageBox.Ok)
         else:
-             QMessageBox.warning(self, "Внимание",
-                "Папка версии и так не найдена. Нажмите 'Играть' для установки.",
-                QMessageBox.Ok)
+                QMessageBox.warning(self, "Внимание",
+                    "Папка версии и так не найдена. Нажмите 'Играть' для установки.",
+                    QMessageBox.Ok)
 
     def log_to_console(self, message):
         self.console_output.append(message)

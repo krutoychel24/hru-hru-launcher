@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 MODRINTH_API_URL = "https://api.modrinth.com/v2"
 
-def search_mods(query: str, game_version: str, loader: str, lang_dict: dict, sort_option: str = "relevance"):
+def search_mods(query: str, game_version: str, loader: str, lang_dict: dict, sort_option: str = "relevance", offset: int = 0):
     facets = [
         [f"versions:{game_version}"],
         [f"project_type:mod"],
@@ -22,17 +22,19 @@ def search_mods(query: str, game_version: str, loader: str, lang_dict: dict, sor
     params = {
         "query": query,
         "facets": json.dumps(facets),
-        "limit": 20,
-        "index": sort_option
+        "limit": 20, 
+        "index": sort_option,
+        "offset": offset 
     }
     try:
         response = requests.get(f"{MODRINTH_API_URL}/search", params=params, timeout=10)
         response.raise_for_status()
-        return response.json().get("hits", [])
+        data = response.json()
+        return data.get("hits", []), data.get("total_hits", 0) 
     except requests.RequestException as e:
         error_message = lang_dict.get("error_searching_mods", "Error searching for mods ('{query}'): {e}")
         logging.error(error_message.format(query=query, e=e))
-        return []
+        return [], 0
 
 def get_project_details(project_id: str, lang_dict: dict):
     if not project_id: return None
