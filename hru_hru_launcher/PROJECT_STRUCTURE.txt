@@ -30,6 +30,8 @@ HruHruLauncher/
 │   │   ├── __init__.py
 │   │   ├── mc_worker.py
 │   │   └── profile_manager.py
+        └── mod_manager.py
+        └── updater.py
 │   ├── ui/
 │   │   ├── __init__.py
 │   │   ├── main_window.py

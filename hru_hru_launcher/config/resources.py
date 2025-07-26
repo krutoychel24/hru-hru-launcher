@@ -1,7 +1,6 @@
 # hru_hru_launcher/config/resources.py
 
 ALERT_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield-alert"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>'''
-
 PLAY_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play"><polygon points="5 3 19 12 5 21 5 3"/></svg>'''
 SETTINGS_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'''
 NEWS_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-newspaper"><path d="M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><line x1="18" y1="10" x2="12" y2="10"/><line x1="18" y1="14" x2="12" y2="14"/><line x1="6" y1="10" x2="6.01" y2="10"/><line x1="6" y1="14" x2="6.01" y2="14"/></svg>'''
@@ -12,9 +11,8 @@ MODS_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="2
 MODPACKS_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grid"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>'''
 VPN_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'''
 INSTALLED_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="#1DB954" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-circle"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>'''
-LINK_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'''
-DELETE_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="#E23D28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'''
-CHECK_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M5 13l4 4L19 7"/></svg>'''
+FOLDER_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#f8f8f2" viewBox="0 0 256 256"><path d="M224,88H72A71.76,71.76,0,0,0,16,152v32a8,8,0,0,0,8,8H224a8,8,0,0,0,8-8V96A8,8,0,0,0,224,88ZM48,152A23.82,23.82,0,0,1,72,128h144v24H72A24,24,0,0,1,48,152Zm168-48H188.38a40,40,0,0,0-76.76,0H72A23.82,23.82,0,0,1,48,128.39V128a55.75,55.75,0,0,1,.77-9.08l13.14-48.62A8,8,0,0,1,70,64H208a8,8,0,0,1,7.1,4.63l18.81,47C239.41,121.28,232,128,224,128a7.78,7.78,0,0,0-2.18-.27V104Z"></path></svg>'''
+
 
 LANGUAGES = {
     "ru": {
@@ -64,40 +62,33 @@ LANGUAGES = {
         "downloads": "По популярности",
         "newest": "По новизне",
         "refresh": "Обновить",
+        "page": "Стр.",
+        "prev_page": "Назад",
+        "next_page": "Вперед",
         "downloading": "Загрузка",
         "starting": "Запуск игры...",
         "error_occurred": "Произошла ошибка: ",
         "error_dialog_title": "Обнаружена Ошибка",
         "fix_button": "Исправить",
         "cancel_button": "Отмена",
-        
         "error_file_corruption_title": "Повреждение Файлов",
         "error_file_corruption_desc": "Похоже, что основные файлы версии '{version_id}' повреждены или отсутствуют.",
         "error_file_corruption_fix": "Рекомендуется полностью переустановить эту версию. Все ваши миры и настройки сохранятся.",
-        
         "error_java_path_title": "Неверный Путь Java",
         "error_java_path_desc": "Лаунчер не смог найти Java по указанному пути.",
         "error_java_path_fix": "Предлагается сбросить путь к Java на автоматическое определение и повторить запуск.",
-        
         "error_jvm_args_title": "Неверный Аргумент JVM",
         "error_jvm_args_desc": "Игра не запустилась из-за неверного аргумента, переданного Java.",
         "error_jvm_args_fix": "Рекомендуется очистить поле пользовательских аргументов JVM в настройках.",
-        
         "error_manual_java_path_desc": "Лаунчер не смог автоматически найти рабочую версию Java на вашем компьютере.",
         "error_manual_java_path_fix": "Убедитесь, что у вас установлена Java (17+), и попробуйте указать путь к файлу 'javaw.exe' вручную в расширенных настройках.",
-
-                "news_disclaimer": "Официальные новости с сайта Minecraft.net (не относятся к лаунчеру)",
-        "read_more": "Читать далее...",
-        "loading_news": "Загрузка новостей...",
-        
-        "mods_search": "Поиск",
-        "mods_installed": "Установленные",
-        "installed_mods_scan": "Сканирование папки модов...",
-        "installed_mods_empty": "Папка 'mods' пуста.",
-        "mod_enabled": "Включен",
-        "mod_disabled": "Выключен",
-        "delete_mod_confirm_title": "Удаление мода",
-        "delete_mod_confirm_text": "Вы уверены, что хотите удалить файл мода '{filename}'?",
+        # Нові рядки для логування
+        "error_searching_mods": "Ошибка при поиске модов ('{query}'): {e}",
+        "error_getting_project_details": "Не удалось получить детали проекта {project_id}: {e}",
+        "error_reading_mod_id": "Не удалось прочитать mod ID из {filename}: {e}",
+        "error_finding_mod_version": "Не удалось найти версию для {project_id} (MC {game_version}, {loader}): {e}",
+        "file_downloaded_successfully": "Файл {filename} успешно скачан.",
+        "error_downloading_file": "Ошибка скачивания {filename}: {e}",
     },
     "en": {
         "title": "Hru Hru Launcher",
@@ -146,39 +137,107 @@ LANGUAGES = {
         "downloads": "Popularity",
         "newest": "Newest",
         "refresh": "Refresh",
+        "page": "Page",
+        "prev_page": "Prev",
+        "next_page": "Next",
         "downloading": "Downloading",
         "starting": "Starting game...",
         "error_occurred": "An error occurred: ",
         "error_dialog_title": "Error Detected",
         "fix_button": "Fix It",
         "cancel_button": "Cancel",
-        
         "error_file_corruption_title": "File Corruption",
         "error_file_corruption_desc": "It seems the core files for version '{version_id}' are corrupt or missing.",
         "error_file_corruption_fix": "It is recommended to completely reinstall this version. All your worlds and settings will be saved.",
-        
         "error_java_path_title": "Invalid Java Path",
         "error_java_path_desc": "The launcher could not find Java at the specified path.",
         "error_java_path_fix": "We suggest resetting the Java path to automatic detection and trying to launch again.",
-        
         "error_jvm_args_title": "Invalid JVM Argument",
         "error_jvm_args_desc": "The game failed to launch due to an incorrect argument passed to Java.",
         "error_jvm_args_fix": "It is recommended to clear the custom JVM arguments field in the settings.",
-        
         "error_manual_java_path_desc": "The launcher could not automatically find a working Java installation on your computer.",
         "error_manual_java_path_fix": "Please ensure Java (17+) is installed, and try specifying the path to 'javaw.exe' manually in the advanced settings.",
-        
-        "news_disclaimer": "Official news from Minecraft.net (not related to the launcher)",
-        "read_more": "Read More...",
-        "loading_news": "Loading news...",
-
-        "mods_search": "Search",
-        "mods_installed": "Installed",
-        "installed_mods_scan": "Scanning mods folder...",
-        "installed_mods_empty": "Your 'mods' folder is empty.",
-        "mod_enabled": "Enabled",
-        "mod_disabled": "Disabled",
-        "delete_mod_confirm_title": "Delete Mod",
-        "delete_mod_confirm_text": "Are you sure you want to delete the mod file '{filename}'?",
+        # New lines for logging
+        "error_searching_mods": "Error searching for mods ('{query}'): {e}",
+        "error_getting_project_details": "Failed to get project details for {project_id}: {e}",
+        "error_reading_mod_id": "Could not read mod ID from {filename}: {e}",
+        "error_finding_mod_version": "Could not find a version for {project_id} (MC {game_version}, {loader}): {e}",
+        "file_downloaded_successfully": "File {filename} downloaded successfully.",
+        "error_downloading_file": "Error downloading {filename}: {e}",
+    },
+    "ua": {
+        "title": "Hru Hru Launcher",
+        "version": "Версія",
+        "username": "Нікнейм",
+        "enter_username": "Введіть нікнейм...",
+        "enter_username_error": "Помилка: Введіть нікнейм!",
+        "launch": "ГРАТИ",
+        "launching": "ЗАПУСК...",
+        "news": "Новини",
+        "mods": "Моди",
+        "modpacks": "Збірки",
+        "vpn": "VPN",
+        "console": "Консоль",
+        "settings": "Налаштування",
+        "language": "Мова",
+        "accent_color": "Акцентний колір",
+        "choose_color": "Обрати колір",
+        "memory": "Виділення пам'яті",
+        "fullscreen": "Повноекранний режим",
+        "close_launcher": "Закривати лаунчер після запуску",
+        "clear_console": "Очистити консоль",
+        "advanced_settings_show": "Показати розширені налаштування",
+        "resolution": "Роздільна здатність гри",
+        "jvm_args_custom": "Власні аргументи JVM",
+        "java_path": "Шлях до файлу Java",
+        "version_type": "Тип версії",
+        "vanilla": "Vanilla",
+        "forge": "Forge",
+        "fabric": "Fabric",
+        "loading_versions": "Завантаження версій...",
+        "mem_feedback_risky": "Ризиковано! Може не вистачити для запуску.",
+        "mem_feedback_low": "Мало. Підійде для старих версій.",
+        "mem_feedback_optimal": "Оптимально для більшості збірок.",
+        "mem_feedback_good": "Чудово для важких збірок.",
+        "mem_feedback_excessive": "Надлишково. Може викликати мікро-лаги.",
+        "wip_notice": "Розділ у розробці",
+        "open_mods_folder": "Відкрити папку модів",
+        "open_modpacks_folder": "Відкрити папку збірок",
+        "search_mods_placeholder": "Знайти моди на Modrinth...",
+        "searching": "Пошук...",
+        "select_mod_loader": "Спочатку виберіть завантажувач (Forge/Fabric).",
+        "no_mods_found": "Моди не знайдено.",
+        "sort_by": "Сортувати за:",
+        "relevance": "За релевантн.",
+        "downloads": "За популярністю",
+        "newest": "За новизною",
+        "refresh": "Оновити",
+        "page": "Стор.",
+        "prev_page": "Назад",
+        "next_page": "Вперед",
+        "downloading": "Завантаження",
+        "starting": "Запуск гри...",
+        "error_occurred": "Сталася помилка: ",
+        "error_dialog_title": "Виявлено Помилку",
+        "fix_button": "Виправити",
+        "cancel_button": "Скасувати",
+        "error_file_corruption_title": "Пошкодження Файлів",
+        "error_file_corruption_desc": "Схоже, що основні файли версії '{version_id}' пошкоджені або відсутні.",
+        "error_file_corruption_fix": "Рекомендується повністю перевстановити цю версію. Усі ваші світи та налаштування збережуться.",
+        "error_java_path_title": "Неправильний Шлях Java",
+        "error_java_path_desc": "Лаунчер не зміг знайти Java за вказаним шляхом.",
+        "error_java_path_fix": "Пропонується скинути шлях до Java на автоматичне визначення та повторити запуск.",
+        "error_jvm_args_title": "Неправильний Аргумент JVM",
+        "error_jvm_args_desc": "Гра не запустилася через невірний аргумент, переданий Java.",
+        "error_jvm_args_fix": "Рекомендується очистити поле власних аргументів JVM у налаштуваннях.",
+        "error_manual_java_path_desc": "Лаунчер не зміг автоматично знайти робочу версію Java на вашому комп'ютері.",
+        "error_manual_java_path_fix": "Переконайтеся, що у вас встановлена Java (17+), і спробуйте вказати шлях до файлу 'javaw.exe' вручну в розширених налаштуваннях.",
+        # Нові рядки для логування
+        "error_searching_mods": "Помилка під час пошуку модів ('{query}'): {e}",
+        "error_getting_project_details": "Не вдалося отримати деталі проекту {project_id}: {e}",
+        "error_reading_mod_id": "Не вдалося прочитати mod ID з {filename}: {e}",
+        "error_finding_mod_version": "Не вдалося знайти версію для {project_id} (MC {game_version}, {loader}): {e}",
+        "file_downloaded_successfully": "Файл {filename} успішно завантажено.",
+        "error_downloading_file": "Помилка завантаження {filename}: {e}",
     }
 }

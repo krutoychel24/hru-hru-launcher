@@ -386,13 +386,14 @@ class ModDownloadWorker(QThread):
     mod_info_signal = Signal(str, dict)
     progress = Signal(str, int)
 
-    def __init__(self, project_id, game_version, loader, minecraft_dir, parent=None):
+    def __init__(self, project_id, game_version, loader, minecraft_dir, lang_dict, parent=None):
         super().__init__(parent)
         self.project_id = project_id
         self.game_version = game_version
         self.loader = loader
         self.minecraft_dir = minecraft_dir
         self.is_running = True
+        self.lang_dict = lang_dict
         logging.info(f"[Worker {self.project_id}] Thread created.")
 
     def run(self):
@@ -401,7 +402,7 @@ class ModDownloadWorker(QThread):
             self.progress.emit(self.project_id, 0)
 
             logging.info(f"[Worker {self.project_id}] Getting mod version info...")
-            version_info = mod_manager.get_latest_mod_version(self.project_id, self.game_version, self.loader)
+            version_info = mod_manager.get_latest_mod_version(self.project_id, self.game_version, self.loader, self.lang_dict)
             if not version_info or not version_info.get("files"):
                 logging.error(f"[Worker {self.project_id}] Could not find a compatible file.")
                 self.finished.emit(self.project_id, False, f"Error for {self.project_id}: could not find a compatible file.")
@@ -425,7 +426,7 @@ class ModDownloadWorker(QThread):
                 if self.is_running:
                     self.progress.emit(self.project_id, p)
 
-            success = mod_manager.download_file(file_url, mods_folder, file_name, progress_handler)
+            success = mod_manager.download_file(file_url, mods_folder, file_name, progress_handler, self.lang_dict)
             logging.info(f"[Worker {self.project_id}] File download finished with status: {success}")
 
             if success and self.is_running:
@@ -467,6 +468,7 @@ class MinecraftLauncher(QWidget):
         self.settings = settings.load_settings()
 
         self.current_language = self.settings.get("language", "en")
+        self.lang_dict = resources.LANGUAGES[self.current_language]
         self.current_accent_color = self.settings.get("accent_color", "#1DB954")
         self.current_version_type = self.settings.get("version_type", "vanilla")
 
@@ -743,8 +745,9 @@ class MinecraftLauncher(QWidget):
         self.lang_label = QLabel()
         self.lang_label.setFont(self.subtitle_font)
         self.language_combo = QComboBox()
-        self.language_combo.addItems(["English", "Русский"])
-        self.language_combo.setCurrentIndex(0 if self.current_language == "en" else 1)
+        self.language_combo.addItems(["English", "Русский", "Українська"])
+        lang_map = {"en": 0, "ru": 1, "uk": 2}
+        self.language_combo.setCurrentIndex(lang_map.get(self.current_language, 0))
         self.language_combo.currentTextChanged.connect(self.change_language)
 
         self.accent_color_label = QLabel()
@@ -1084,7 +1087,13 @@ class MinecraftLauncher(QWidget):
         settings.save_settings(current_settings)
 
     def change_language(self, language_text):
-        self.current_language = "en" if language_text == "English" else "ru"
+        if language_text == "English":
+            self.current_language = "en"
+        elif language_text == "Русский":
+            self.current_language = "ru"
+        elif language_text == "Українська":
+            self.current_language = "ua"
+        self.lang_dict = resources.LANGUAGES[self.current_language]
         self.update_ui_text()
 
     def change_version_type(self, type_id):
@@ -1351,7 +1360,7 @@ class MinecraftLauncher(QWidget):
         loader = self.current_version_type
         logging.info(f"Parameters for download: version='{game_version}', loader='{loader}'")
 
-        worker = ModDownloadWorker(project_id, game_version, loader, self.minecraft_directory, self)
+        worker = ModDownloadWorker(project_id, game_version, loader, self.minecraft_directory, self.lang_dict, self)
         
         worker.progress.connect(self.on_mod_download_progress)
         worker.finished.connect(self.on_mod_download_finished)
