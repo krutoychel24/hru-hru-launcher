@@ -1,3 +1,5 @@
+# hru_hru_launcher/ui/main_window.py
+
 import sys
 import os
 import json
@@ -5,7 +7,8 @@ import subprocess
 import traceback
 import logging
 import shutil
-import base64
+import re
+import math
 from functools import partial
 from pathlib import Path
 
@@ -13,15 +16,17 @@ import requests
 from PySide6.QtCore import (Qt, QThread, Signal, QPropertyAnimation, QEasingCurve, QSize, QPoint, QUrl, QByteArray)
 from PySide6.QtGui import (QFont, QFontDatabase, QIcon, QPixmap, QColor, QStandardItemModel, QStandardItem, QDesktopServices)
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QLineEdit, QPushButton,
-                               QProgressBar, QFrame, QCheckBox, QSlider, QTabWidget, QTextEdit,
-                               QButtonGroup, QRadioButton, QGraphicsDropShadowEffect, QColorDialog, QListWidget, QListWidgetItem, QMessageBox, QDialog,
-                               QSizeGrip, QFileDialog)
+                             QProgressBar, QFrame, QCheckBox, QSlider, QTabWidget, QTextEdit,
+                             QButtonGroup, QRadioButton, QGraphicsDropShadowEffect, QColorDialog, QListWidget, QListWidgetItem, QMessageBox, QDialog,
+                             QSizeGrip, QFileDialog)
 
 import minecraft_launcher_lib
 
 from .widgets import AnimatedButton
 from .widgets.mod_list_item import ModListItemWidget
 from .widgets.installed_mod_list_item import InstalledModListItemWidget
+from .widgets.version_selection_dialog import VersionSelectionDialog
+from .widgets.version_list_item import VersionListItemWidget
 from . import themes
 from ..core.mc_worker import MinecraftWorker
 from ..core import mod_manager
@@ -33,6 +38,7 @@ APP_VERSION = "v1.1.2-beta"
 API_URL = "https://api.github.com/repos/krutoychel24/hru-hru-launcher/releases/latest"
 DOWNLOAD_URL_TEMPLATE = "https://github.com/krutoychel24/hru-hru-launcher/releases/download/{tag}/{filename}"
 # --- END AUTO-UPDATE SETTINGS ---
+
 
 class FixErrorDialog(QDialog):
     def __init__(self, error_title, error_desc, fix_suggestion, lang_dict, parent=None):
@@ -370,7 +376,6 @@ class ModDownloadWorker(QThread):
             logging.info(f"[Worker {self.project_id}] File download finished with status: {success}")
 
             if success and self.is_running:
-                # Add game_version to the saved info
                 file_info = {
                     "filename": file_name, 
                     "url": file_url, 
@@ -409,6 +414,44 @@ class LocalModsScannerWorker(QThread):
         mods = mod_manager.scan_local_mods(self.mods_folder, self.lang_dict, self.installed_mods_data)
         self.finished.emit(mods)
 
+class VersionSizeScannerWorker(QThread):
+    """Worker to scan the size of version folders in the background."""
+    finished = Signal(dict, int) 
+
+    def __init__(self, versions_path, version_ids, parent=None):
+        super().__init__(parent)
+        self.versions_path = versions_path
+        self.version_ids = version_ids
+
+    @staticmethod
+    def get_dir_size(path):
+        """Recursively calculates the size of a directory."""
+        total = 0
+        try:
+            for entry in os.scandir(path):
+                if entry.is_file():
+                    total += entry.stat().st_size
+                elif entry.is_dir():
+                    total += VersionSizeScannerWorker.get_dir_size(entry.path)
+        except (NotADirectoryError, FileNotFoundError, PermissionError):
+            return 0
+        return total
+
+    def run(self):
+        sizes = {}
+        total_size = 0
+        for version_id in self.version_ids:
+            if self.isInterruptionRequested():
+                return
+            version_path = os.path.join(self.versions_path, version_id)
+            if os.path.isdir(version_path):
+                size = self.get_dir_size(version_path)
+                sizes[version_id] = size
+                total_size += size
+        
+        if not self.isInterruptionRequested():
+            self.finished.emit(sizes, total_size)
+
 
 class MinecraftLauncher(QWidget):
     def __init__(self):
@@ -418,13 +461,16 @@ class MinecraftLauncher(QWidget):
         self.mod_search_worker = None
         self.update_check_worker = None
         self.local_mods_scanner = None
+        self.version_size_scanner = None
         self.mod_download_workers = {}
         self.mod_list_item_map = {}
+        self.version_widget_map = {}
         self.mod_current_page = 1
         self.mod_total_hits = 0
         self.updater_path = None
         self.latest_version_info = None
-        
+        self.grouped_versions = {}
+
         self.update_status_info = {"text": "Click to check for updates", "is_update_available": False}
 
         self.settings = settings.load_settings()
@@ -435,15 +481,17 @@ class MinecraftLauncher(QWidget):
         self.current_version_type = self.settings.get("version_type", "vanilla")
 
         self.minecraft_directory = minecraft_launcher_lib.utils.get_minecraft_directory()
-        os.makedirs(self.minecraft_directory, exist_ok=True)
-        self.installed_mods_path = os.path.join(self.minecraft_directory, "installed_mods.json")
+        if self.minecraft_directory:
+            os.makedirs(self.minecraft_directory, exist_ok=True)
+            self.installed_mods_path = os.path.join(self.minecraft_directory, "installed_mods.json")
+        else:
+            self.installed_mods_path = ""
         
         self.init_fonts()
         self.init_icons()
         self.init_ui()
 
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
-
         self.prepare_updater()
         self.update_version_display()
 
@@ -477,6 +525,7 @@ class MinecraftLauncher(QWidget):
             pixmap = QPixmap()
             pixmap.loadFromData(svg_data)
             return QIcon(pixmap)
+            
         self.play_icon = create_icon(resources.PLAY_ICON_SVG)
         self.settings_icon = create_icon(resources.SETTINGS_ICON_SVG)
         self.news_icon = create_icon(resources.NEWS_ICON_SVG)
@@ -487,7 +536,18 @@ class MinecraftLauncher(QWidget):
         self.modpacks_icon = create_icon(resources.MODPACKS_ICON_SVG)
         self.vpn_icon = create_icon(resources.VPN_ICON_SVG)
         self.installed_icon = create_icon(resources.INSTALLED_ICON_SVG)
-        self.folder_icon = create_icon(base64.b64decode("PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgZmlsbD0iI2Y4ZjhmMiIgdmlld0JveD0iMCAwIDI1NiAyNTYiPjxwYXRoIGQ9Ik0yMjQsODhINzJBNzEuNzYsNzEuNzYsMCwwLDAsMTYsMTUyVjE4NGE4LDgsMCwwLDAsOCw4SDIyNGE4LDgsMCwwLDAsOC04Vjk2QTgsOCwwLDAsMCwyMjQsODhaTTQ4LDE1MkEyMy44MiwyMy44MiwwLDAsMSw3MiwxMjhoMTQ0djI0SDcyQTI0LDI0LDAsMCwxLDQ4LDE1MlpNMjE2LDEwNEgxODguMzhhNDAsNDAsMCwwLDAtNzYuNzYsMEg3MkEyMy44MiwyMy44MiwwLDAsMSw0OCwxMjguMzlWMTI4YTU1Ljc1LDU1Ljc1LDAsMCwxLC43Ny05LjA4bDEzLjE0LTQ4LjYyQTgsOCwwLDAsMSw3MCw2NEgyMDhhOCw4LDAsMCwxLDcuMSw0LjYzbDE4LjgxLDQ3QzIzOS40MSwxMjEuMjgsMjMyLDEyOCwyMjQsMTI4YTcuNzgsNy43OCwwLDAsMC0yLjE4LS4yN1YxMDRaIj48L3BhdGg+PC9zdmc+"))
+        self.folder_icon = create_icon(resources.FOLDER_ICON_SVG)
+        self.manage_versions_icon = create_icon(resources.MANAGE_ICON_SVG)
+
+        self.version_management_icons = {
+            "vanilla": self.version_icon,
+            "forge": create_icon(resources.FORGE_ICON_SVG),
+            "fabric": create_icon(resources.FABRIC_ICON_SVG),
+            "folder": self.folder_icon,
+            "repair": create_icon(resources.REPAIR_ICON_SVG),
+            "delete": create_icon(resources.DELETE_ICON_SVG),
+        }
+
         assets_dir = get_assets_dir()
         icon_path = os.path.join(assets_dir, "launcher-icon.ico")
         if os.path.exists(icon_path):
@@ -651,19 +711,23 @@ class MinecraftLauncher(QWidget):
         self.tab_widget = QTabWidget()
         self.tab_widget.setFont(self.minecraft_font)
         self.tab_widget.setObjectName("tabWidget")
+        
         self.create_news_tab()
         self.create_mods_tab()
+        self.create_versions_tab()
         self.create_modpacks_tab()
         self.create_vpn_tab()
         self.create_console_tab()
         self.create_settings_tab()
+
         content_layout.addWidget(self.tab_widget)
 
     def create_settings_tab(self):
-        settings_widget = QWidget()
-        settings_layout = QVBoxLayout(settings_widget)
+        self.settings_tab_widget = QWidget()
+        settings_layout = QVBoxLayout(self.settings_tab_widget)
         settings_layout.setContentsMargins(20, 20, 20, 20)
         settings_layout.setSpacing(15)
+
         self.jvm_args_label = QLabel()
         self.jvm_args_label.setFont(self.subtitle_font)
         self.jvm_args_input = QLineEdit(self.settings.get("jvm_args", ""))
@@ -718,6 +782,7 @@ class MinecraftLauncher(QWidget):
         self.advanced_settings_button = QPushButton()
         self.advanced_settings_button.setCheckable(False)
         self.advanced_settings_button.clicked.connect(self.open_advanced_settings)
+        
         settings_layout.addWidget(self.lang_label)
         settings_layout.addWidget(self.language_combo)
         settings_layout.addSpacing(10)
@@ -736,9 +801,11 @@ class MinecraftLauncher(QWidget):
         settings_layout.addSpacing(10)
         settings_layout.addWidget(self.fullscreen_checkbox)
         settings_layout.addWidget(self.close_launcher_checkbox)
+        
         settings_layout.addStretch()
         settings_layout.addWidget(self.advanced_settings_button)
-        self.tab_widget.addTab(settings_widget, self.settings_icon, "")
+        
+        self.tab_widget.addTab(self.settings_tab_widget, self.settings_icon, "")
 
     def create_placeholder_tab(self, icon, tab_name):
         widget = QWidget()
@@ -841,7 +908,6 @@ class MinecraftLauncher(QWidget):
         self.installed_mods_list.setObjectName("modList")
         self.installed_mods_list.setSpacing(5)
 
-        # New bottom bar for the "Installed" tab
         installed_bottom_bar = QHBoxLayout()
         installed_bottom_bar.addStretch()
         self.open_mods_folder_button_installed = QPushButton()
@@ -856,11 +922,83 @@ class MinecraftLauncher(QWidget):
         installed_layout.addWidget(self.installed_mods_list, 1)
         installed_layout.addLayout(installed_bottom_bar)
 
-        self.mods_sub_tabs.addTab(search_widget, self.lang_dict.get("search", "Search"))
-        self.mods_sub_tabs.addTab(installed_widget, self.lang_dict.get("installed", "Installed"))
+        self.mods_sub_tabs.addTab(search_widget, "")
+        self.mods_sub_tabs.addTab(installed_widget, "")
 
         self.tab_widget.addTab(self.mods_tab_widget, self.mods_icon, "")
         self.mods_sub_tabs.currentChanged.connect(self.on_mods_sub_tab_changed)
+
+    def create_versions_tab(self):
+        self.versions_tab_widget = QWidget()
+        versions_layout = QVBoxLayout(self.versions_tab_widget)
+        versions_layout.setContentsMargins(10, 10, 10, 10)
+        versions_layout.setSpacing(10)
+
+        top_bar_layout = QHBoxLayout()
+        self.refresh_versions_button = QPushButton()
+        self.refresh_versions_button.clicked.connect(self.refresh_installed_versions_list)
+        top_bar_layout.addStretch()
+        top_bar_layout.addWidget(self.refresh_versions_button)
+        
+        size_info_layout = QHBoxLayout()
+        size_info_layout.setContentsMargins(0, 5, 10, 5)
+        self.total_versions_size_label = QLabel()
+        self.total_versions_size_label.setObjectName("totalSizeLabel")
+        self.total_versions_size_label.setAlignment(Qt.AlignRight)
+        size_info_layout.addStretch()
+        size_info_layout.addWidget(self.total_versions_size_label)
+
+        self.installed_versions_list = QListWidget()
+        self.installed_versions_list.setObjectName("modList") 
+        self.installed_versions_list.setSpacing(5)
+
+        versions_layout.addLayout(top_bar_layout)
+        versions_layout.addLayout(size_info_layout)
+        versions_layout.addWidget(self.installed_versions_list, 1)
+
+        self.tab_widget.addTab(self.versions_tab_widget, self.manage_versions_icon, "")
+
+    def create_modpacks_tab(self):
+        widget = QWidget()
+        widget.setObjectName("modpacks")
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(10, 10, 10, 10)
+        self.modpacks_tab_label = QLabel()
+        self.modpacks_tab_label.setObjectName("wipLabel")
+        self.modpacks_tab_label.setFont(self.subtitle_font)
+        self.modpacks_tab_label.setAlignment(Qt.AlignCenter)
+        self.open_modpacks_folder_button = QPushButton()
+        self.open_modpacks_folder_button.setObjectName("openModpacksFolderButton")
+        self.open_modpacks_folder_button.setIcon(self.modpacks_icon)
+        self.open_modpacks_folder_button.setIconSize(QSize(28, 28))
+        self.open_modpacks_folder_button.setFixedSize(44, 44)
+        self.open_modpacks_folder_button.clicked.connect(self.open_modpacks_folder)
+        bottom_bar_layout = QHBoxLayout()
+        bottom_bar_layout.addStretch()
+        bottom_bar_layout.addWidget(self.open_modpacks_folder_button)
+        layout.addStretch()
+        layout.addWidget(self.modpacks_tab_label)
+        layout.addStretch()
+        layout.addLayout(bottom_bar_layout)
+        self.tab_widget.addTab(widget, self.modpacks_icon, "")
+
+    def create_vpn_tab(self):
+        self.create_placeholder_tab(self.vpn_icon, "vpn")
+
+    def create_console_tab(self):
+        console_widget = QWidget()
+        console_layout = QVBoxLayout(console_widget)
+        self.clear_console_button = AnimatedButton("")
+        self.clear_console_button.setFont(self.minecraft_font)
+        self.clear_console_button.setFixedHeight(35)
+        self.clear_console_button.clicked.connect(self.clear_console)
+        self.console_output = QTextEdit()
+        self.console_output.setFont(QFont("Consolas", 9))
+        self.console_output.setObjectName("consoleOutput")
+        self.console_output.setReadOnly(True)
+        console_layout.addWidget(self.clear_console_button)
+        console_layout.addWidget(self.console_output)
+        self.tab_widget.addTab(console_widget, self.console_icon, "")
 
     def prev_mod_page(self):
         if self.mod_current_page > 1:
@@ -948,7 +1086,6 @@ class MinecraftLauncher(QWidget):
         item.setTextAlignment(Qt.AlignCenter)
         self.installed_mods_list.addItem(item)
         
-        # Pass the saved mod data to the scanner
         installed_data = self.get_installed_mods_info()
         self.local_mods_scanner = LocalModsScannerWorker(mods_folder, self.lang_dict, installed_data, self)
         self.local_mods_scanner.finished.connect(self.on_local_mods_scanned)
@@ -964,7 +1101,7 @@ class MinecraftLauncher(QWidget):
         
         for mod_info in sorted(mods_list, key=lambda x: x['name'].lower()):
             item = QListWidgetItem()
-            item.setSizeHint(QSize(0, 90)) # Adjusted size for icon
+            item.setSizeHint(QSize(0, 90))
             widget = InstalledModListItemWidget(
                 mod_info, self.lang_dict, main_font=self.minecraft_font, bold_font=self.subtitle_font
                 )
@@ -989,7 +1126,6 @@ class MinecraftLauncher(QWidget):
             
             if project_id_to_update:
                 self.remove_installed_mod_info(project_id_to_update)
-                # If the deleted mod is visible in the search list, update its button
                 if project_id_to_update in self.mod_list_item_map:
                     widget = self.mod_list_item_map[project_id_to_update]
                     widget.is_installed = False
@@ -1018,48 +1154,6 @@ class MinecraftLauncher(QWidget):
                 self.refresh_installed_mods()
         else:
             logging.warning(f"Mod toggle for {os.path.basename(filepath)} skipped: already in desired state.")
-
-    def create_modpacks_tab(self):
-        widget = QWidget()
-        widget.setObjectName("modpacks")
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(10, 10, 10, 10)
-        self.modpacks_tab_label = QLabel()
-        self.modpacks_tab_label.setObjectName("wipLabel")
-        self.modpacks_tab_label.setFont(self.subtitle_font)
-        self.modpacks_tab_label.setAlignment(Qt.AlignCenter)
-        self.open_modpacks_folder_button = QPushButton()
-        self.open_modpacks_folder_button.setObjectName("openModpacksFolderButton")
-        self.open_modpacks_folder_button.setIcon(self.modpacks_icon)
-        self.open_modpacks_folder_button.setIconSize(QSize(28, 28))
-        self.open_modpacks_folder_button.setFixedSize(44, 44)
-        self.open_modpacks_folder_button.clicked.connect(self.open_modpacks_folder)
-        bottom_bar_layout = QHBoxLayout()
-        bottom_bar_layout.addStretch()
-        bottom_bar_layout.addWidget(self.open_modpacks_folder_button)
-        layout.addStretch()
-        layout.addWidget(self.modpacks_tab_label)
-        layout.addStretch()
-        layout.addLayout(bottom_bar_layout)
-        self.tab_widget.addTab(widget, self.modpacks_icon, "")
-
-    def create_vpn_tab(self):
-        self.create_placeholder_tab(self.vpn_icon, "vpn")
-
-    def create_console_tab(self):
-        console_widget = QWidget()
-        console_layout = QVBoxLayout(console_widget)
-        self.clear_console_button = AnimatedButton("")
-        self.clear_console_button.setFont(self.minecraft_font)
-        self.clear_console_button.setFixedHeight(35)
-        self.clear_console_button.clicked.connect(self.clear_console)
-        self.console_output = QTextEdit()
-        self.console_output.setFont(QFont("Consolas", 9))
-        self.console_output.setObjectName("consoleOutput")
-        self.console_output.setReadOnly(True)
-        console_layout.addWidget(self.clear_console_button)
-        console_layout.addWidget(self.console_output)
-        self.tab_widget.addTab(console_widget, self.console_icon, "")
 
     def prepare_updater(self):
         try:
@@ -1181,7 +1275,8 @@ class MinecraftLauncher(QWidget):
             "java_path": self.java_path_input.text(), "resolution_width": self.resolution_width_input.text(),
             "resolution_height": self.resolution_height_input.text(), "version_type": self.current_version_type,
             "last_version": self.version_combo.currentData(Qt.UserRole), "accent_color": self.current_accent_color,
-            "last_tab": self.tab_widget.currentIndex(), "window_geometry": self.settings.get('window_geometry')
+            "last_tab": self.tab_widget.currentIndex(),
+            "window_geometry": self.settings.get('window_geometry')
         }
         client_token = self.settings.get("clientToken")
         if client_token:
@@ -1213,16 +1308,27 @@ class MinecraftLauncher(QWidget):
         self.username_label.setText(lang["username"])
         self.launch_button.setText(lang["launch"])
         self.user_input.setPlaceholderText(lang["enter_username"])
+        
         self.tab_widget.setTabText(0, lang["news"])
         self.tab_widget.setTabText(1, lang["mods"])
-        self.tab_widget.setTabText(2, lang["modpacks"])
-        self.tab_widget.setTabText(3, lang["vpn"])
-        self.tab_widget.setTabText(4, lang["console"])
-        self.tab_widget.setTabText(5, lang["settings"])
+        self.tab_widget.setTabText(2, lang.get("versions_management", "Versions"))
+        self.tab_widget.setTabText(3, lang["modpacks"])
+        self.tab_widget.setTabText(4, lang["vpn"])
+        self.tab_widget.setTabText(5, "")
+        self.tab_widget.setTabText(6, "")
+        
+        self.tab_widget.setTabToolTip(5, lang.get("tooltip_console", "Console"))
+        self.tab_widget.setTabToolTip(6, lang.get("tooltip_settings", "Settings"))
+        
         if hasattr(self, 'mods_sub_tabs'):
             self.mods_sub_tabs.setTabText(0, lang.get("search", "Search"))
             self.mods_sub_tabs.setTabText(1, lang.get("installed", "Installed"))
             self.refresh_installed_button.setText(lang.get("refresh", "Refresh"))
+        
+        if hasattr(self, 'refresh_versions_button'):
+            self.refresh_versions_button.setText(lang.get("refresh", "Refresh"))
+            self.refresh_versions_button.setToolTip(lang.get("refresh", "Refresh"))
+            
         self.lang_label.setText(lang["language"])
         self.accent_color_label.setText(lang["accent_color"])
         self.color_picker_button.setText(lang["choose_color"])
@@ -1262,11 +1368,22 @@ class MinecraftLauncher(QWidget):
                     
     def apply_theme(self):
         base_style = themes.get_dark_theme(accent_color=self.current_accent_color)
-        custom_style = "QPushButton { outline: none; }"
+        custom_style = """
+            QPushButton { 
+                outline: none; 
+            }
+            QTabBar::tab:nth-last-child(1), QTabBar::tab:nth-last-child(2) {
+                width: 60px;
+                padding: 10px 15px;
+            }
+            #totalSizeLabel {
+                color: #bd93f9;
+                font-size: 9pt;
+            }
+        """
         self.setStyleSheet(base_style + custom_style)
         self.update_title_glow()
 
-    @staticmethod
     def get_latest_versions(raw_versions):
         latest_versions = {}
         for version_str in raw_versions:
@@ -1357,15 +1474,18 @@ class MinecraftLauncher(QWidget):
         self.log_to_console(f"Failed to load version list: {error_msg}")
 
     def on_tab_changed(self, index):
-        if self.tab_widget.widget(index) == self.mods_tab_widget:
+        current_widget = self.tab_widget.widget(index)
+        if current_widget == self.mods_tab_widget:
             self.on_mods_sub_tab_changed(self.mods_sub_tabs.currentIndex())
+        elif current_widget == self.versions_tab_widget:
+            self.refresh_installed_versions_list()
 
     def on_mods_sub_tab_changed(self, index):
-        if index == 0: # Search tab
+        if index == 0:
             if self.mod_results_list.count() == 0:
                 self.mod_search_input.clear()
                 self.update_mod_list()
-        elif index == 1: # Installed tab
+        elif index == 1:
             self.refresh_installed_mods()
 
     def start_mod_download(self, mod_data):
@@ -1424,13 +1544,12 @@ class MinecraftLauncher(QWidget):
 
     def get_installed_mods_info(self):
         try:
-            if os.path.exists(self.installed_mods_path):
+            if self.installed_mods_path and os.path.exists(self.installed_mods_path):
                 with open(self.installed_mods_path, 'r', encoding='utf-8') as f:
                     return json.load(f)
         except (IOError, json.JSONDecodeError) as e:
             self.log_to_console(f"Error reading installed_mods.json: {e}")
             logging.error("Error reading installed_mods.json", exc_info=True)
-            return {}
         return {}
 
     def add_installed_mod_info(self, project_id, file_info):
@@ -1500,7 +1619,12 @@ class MinecraftLauncher(QWidget):
         self.launch_button.setText(lang["launching"])
         self.progress_bar.setVisible(True)
         self.error_label.setVisible(False)
-        self.tab_widget.setCurrentIndex(4)
+        
+        console_widget = self.console_output.parentWidget()
+        console_index = self.tab_widget.indexOf(console_widget)
+        if console_index != -1:
+            self.tab_widget.setCurrentIndex(console_index)
+
         jvm_args_list = self.jvm_args_input.text().split()
         options = {
             "executablePath": self.java_path_input.text() or None,
@@ -1589,13 +1713,15 @@ class MinecraftLauncher(QWidget):
             try:
                 shutil.rmtree(version_path)
                 self.log_to_console(f"Папка версии '{version_id}' успешно удалена.")
-                QMessageBox.information(self, "Успех", f"Файлы версии '{version_id}' были удалены. Нажмите 'Играть', чтобы скачать их заново.", QMessageBox.Ok)
                 self.populate_versions(self.current_version_type)
             except Exception as e:
                 self.log_to_console(f"Не удалось удалить папку версии: {e}")
                 QMessageBox.critical(self, "Ошибка", f"Не удалось удалить папку '{version_path}'.\nПроверьте, не запущена ли игра, или удалите ее вручную.", QMessageBox.Ok)
         else:
-                QMessageBox.warning(self, "Внимание", "Папка версии и так не найдена. Нажмите 'Играть' для установки.", QMessageBox.Ok)
+            self.log_to_console(f"Папка версии '{version_id}' для удаления не найдена.")
+        
+        if self.tab_widget.currentWidget() == self.versions_tab_widget:
+            self.refresh_installed_versions_list()
 
     def log_to_console(self, message):
         self.console_output.append(message)
@@ -1618,6 +1744,171 @@ class MinecraftLauncher(QWidget):
     def open_advanced_settings(self):
         dialog = AdvancedSettingsDialog(self)
         dialog.exec()
+        
+    @staticmethod
+    def format_size(size_bytes):
+        if size_bytes <= 0: return "0 B"
+        size_name = ("B", "KB", "MB", "GB", "TB")
+        try:
+            i = int(math.floor(math.log(size_bytes, 1024)))
+            p = math.pow(1024, i)
+            s = round(size_bytes / p, 2)
+            return f"{s} {size_name[i]}"
+        except (ValueError, IndexError):
+            return "0 B"
+
+    def on_version_sizes_scanned(self, sizes, total_size):
+        total_size_str = self.format_size(total_size)
+        total_label_text = self.lang_dict.get("total_versions_size", "Total size: {size}").format(size=total_size_str)
+        self.total_versions_size_label.setText(total_label_text)
+        
+        grouped_sizes = {}
+        for base_version, id_list in self.grouped_versions.items():
+            group_size = sum(sizes.get(vid, 0) for vid in id_list)
+            grouped_sizes[base_version] = group_size
+        
+        for base_version, widget in self.version_widget_map.items():
+            size = grouped_sizes.get(base_version, 0)
+            widget.update_size(size)
+
+    @staticmethod
+    def version_key(version_string):
+        parts = []
+        for part in version_string.split('.'):
+            try:
+                parts.append(int(part))
+            except ValueError:
+                parts.append(0)
+        return parts
+
+    def get_base_version(self, version_id):
+        version_id_lower = version_id.lower()
+        
+        if 'forge' in version_id_lower:
+            match = re.match(r"(\d+\.\d+(\.\d+)?)", version_id)
+            if match:
+                return match.group(1)
+        
+        if 'fabric' in version_id_lower:
+            matches = re.findall(r"(\d+\.\d+(\.\d+)?)", version_id)
+            if matches:
+                return matches[-1][0]
+
+        match = re.match(r"(\d+\.\d+(\.\d+)?)", version_id)
+        if match:
+            return match.group(1)
+
+        return version_id
+
+    def get_version_type(self, version_id):
+        version_id_lower = version_id.lower()
+        if "fabric" in version_id_lower:
+            return "Fabric"
+        if "forge" in version_id_lower:
+            return "Forge"
+        return "Vanilla"
+
+    def refresh_installed_versions_list(self):
+        self.installed_versions_list.clear()
+        self.grouped_versions.clear()
+        self.version_widget_map.clear()
+        self.total_versions_size_label.setText(self.lang_dict.get("calculating_size", "Calculating size..."))
+
+        try:
+            installed = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_directory)
+            
+            if not installed:
+                item = QListWidgetItem(self.lang_dict.get("no_versions_installed", "No versions installed."))
+                item.setTextAlignment(Qt.AlignCenter)
+                self.installed_versions_list.addItem(item)
+                self.total_versions_size_label.setText("")
+                return
+
+            all_version_ids = []
+            for version_info in installed:
+                version_id = version_info['id']
+                all_version_ids.append(version_id)
+                base_v = self.get_base_version(version_id)
+                if base_v not in self.grouped_versions:
+                    self.grouped_versions[base_v] = []
+                self.grouped_versions[base_v].append(version_id)
+
+            for base_version, id_list in sorted(self.grouped_versions.items(), key=lambda item: self.version_key(item[0]), reverse=True):
+                version_types = sorted(list(set(self.get_version_type(vid) for vid in id_list)))
+                
+                item = QListWidgetItem()
+                item.setSizeHint(QSize(0, 85))
+                widget = VersionListItemWidget(base_version, version_types, self.version_management_icons, self.lang_dict)
+
+                widget.delete_requested.connect(self.handle_version_action)
+                widget.repair_requested.connect(self.handle_version_action)
+                widget.open_folder_requested.connect(self.handle_version_action)
+                
+                self.installed_versions_list.addItem(item)
+                self.installed_versions_list.setItemWidget(item, widget)
+                self.version_widget_map[base_version] = widget
+
+            if self.version_size_scanner and self.version_size_scanner.isRunning():
+                self.version_size_scanner.requestInterruption()
+                self.version_size_scanner.wait()
+            
+            versions_path = os.path.join(self.minecraft_directory, "versions")
+            self.version_size_scanner = VersionSizeScannerWorker(versions_path, all_version_ids, self)
+            self.version_size_scanner.finished.connect(self.on_version_sizes_scanned)
+            self.version_size_scanner.start()
+
+        except Exception as e:
+            self.log_to_console(f"Error scanning for installed versions: {e}")
+            logging.error(f"Error scanning for installed versions: {traceback.format_exc()}")
+            item = QListWidgetItem(self.lang_dict.get("error_scanning_versions", "Error during scan."))
+            item.setTextAlignment(Qt.AlignCenter)
+            self.installed_versions_list.addItem(item)
+            self.total_versions_size_label.setText(self.lang_dict.get("error_scanning_versions", "Error during scan."))
+
+    def handle_version_action(self, base_version):
+        sender_signal = self.sender().metaObject().method(self.senderSignalIndex())
+        signal_name = sender_signal.name().data().decode()
+
+        action_map = {
+            "delete_requested": "delete",
+            "repair_requested": "repair",
+            "open_folder_requested": "open_folder"
+        }
+        action_type = action_map.get(signal_name)
+        if not action_type: return
+
+        versions_in_group = self.grouped_versions.get(base_version, [])
+        version_to_act_on = None
+
+        if len(versions_in_group) == 1:
+            version_to_act_on = versions_in_group[0]
+        elif len(versions_in_group) > 1:
+            title = self.lang_dict.get("select_version_dialog_title", "Select version")
+            prompt = self.lang_dict.get("select_version_prompt", "...").format(base_version=base_version)
+            action_text = self.lang_dict.get(f"action_button_{action_type}", action_type.replace('_', ' ').title())
+
+            dialog = VersionSelectionDialog(title, prompt, versions_in_group, action_text, self.lang_dict, self)
+            if dialog.exec() == QDialog.Accepted:
+                version_to_act_on = dialog.get_selected_version()
+        
+        if version_to_act_on:
+            if action_type in ["delete", "repair"]:
+                confirm_title_key = f"confirm_{action_type}_title"
+                confirm_text_key = f"confirm_{action_type}_text"
+                
+                reply = QMessageBox.question(self,
+                                             self.lang_dict.get(confirm_title_key),
+                                             self.lang_dict.get(confirm_text_key).format(version_id=version_to_act_on),
+                                             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    self.reinstall_version(version_to_act_on)
+            elif action_type == "open_folder":
+                version_path = os.path.join(self.minecraft_directory, "versions", version_to_act_on)
+                if os.path.exists(version_path):
+                    QDesktopServices.openUrl(QUrl.fromLocalFile(version_path))
+                else:
+                    self.log_to_console(f"Could not find folder for version {version_to_act_on}")
+                    QMessageBox.warning(self, "Error", f"Folder for version '{version_to_act_on}' not found.")
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton and self.title_bar.underMouse():
@@ -1640,7 +1931,9 @@ class MinecraftLauncher(QWidget):
                 worker.quit()
                 worker.wait(500)
         self.mod_download_workers.clear()
-        for worker_attr in ['worker', 'version_loader', 'mod_search_worker', 'update_check_worker', 'local_mods_scanner']:
+        worker_list = ['worker', 'version_loader', 'mod_search_worker', 
+                       'update_check_worker', 'local_mods_scanner', 'version_size_scanner']
+        for worker_attr in worker_list:
             worker = getattr(self, worker_attr, None)
             if worker and worker.isRunning():
                 worker.quit()
