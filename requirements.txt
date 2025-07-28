@@ -3,3 +3,4 @@ minecraft-launcher-lib
 requests
 tomli
 feedparser
+psutil

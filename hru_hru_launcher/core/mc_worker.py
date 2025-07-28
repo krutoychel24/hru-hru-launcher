@@ -2,6 +2,7 @@ import os
 import sys
 import uuid
 import subprocess
+import re
 from datetime import datetime
 
 from PySide6.QtCore import QThread, Signal
@@ -11,9 +12,10 @@ from .profile_manager import create_launcher_profiles_if_needed, add_profile
 from ..config import resources, settings
 
 class GameProcessError(Exception):
-    def __init__(self, message, exit_code):
+    def __init__(self, message, exit_code, output=""):
         super().__init__(message)
         self.exit_code = exit_code
+        self.output = output
 
 
 class MinecraftWorker(QThread):
@@ -186,15 +188,19 @@ class MinecraftWorker(QThread):
                 cwd=self.minecraft_dir,
             )
 
+            process_output_lines = []
             for line in iter(process.stdout.readline, ""):
-                self.log_message.emit(line.strip())
-            
+                stripped_line = line.strip()
+                self.log_message.emit(stripped_line)
+                process_output_lines.append(stripped_line)
+
             process.wait()
 
             exit_code = process.returncode
             if exit_code != 0:
+                full_output = "\n".join(process_output_lines)
                 self.log_message.emit(f"Процесс завершился с кодом {exit_code}. Вероятно, произошла ошибка.")
-                raise GameProcessError(f"Game process exited with code {exit_code}", exit_code)
+                raise GameProcessError(f"Game process exited with code {exit_code}", exit_code, full_output)
 
             self.finished.emit("success", None)
 
@@ -202,17 +208,23 @@ class MinecraftWorker(QThread):
             error_details = {"message": str(e), "version_id": version_id_to_launch}
             lang = resources.LANGUAGES[self.lang]
             
-            if isinstance(e, FileNotFoundError):
-                error_details["type"] = "invalid_java_path"
-                error_msg = lang['error_occurred'] + "Неверный путь к Java."
-            
-            elif isinstance(e, GameProcessError):
-                if e.exit_code == 1:
+            if isinstance(e, GameProcessError):
+                if self.mod_loader == "fabric" and "Incompatible mods found!" in e.output and "Fix: add" in e.output:
+                    error_details["type"] = "fabric_dependency_error"
+                    match = re.search(r"Fix: add \[add:([\w-]+)", e.output)
+                    dependency = match.group(1) if match else "a required dependency"
+                    error_details["dependency"] = dependency
+                    error_msg = lang['error_occurred'] + f"Missing dependency: {dependency}"
+                elif e.exit_code == 1:
                     error_details["type"] = "invalid_jvm_argument"
                     error_msg = lang['error_occurred'] + "Неверный аргумент или настройка JVM."
                 else:
                     error_details["type"] = "file_corruption"
                     error_msg = lang['error_occurred'] + "Игра аварийно завершилась. Возможно, файлы повреждены."
+            
+            elif isinstance(e, FileNotFoundError):
+                error_details["type"] = "invalid_java_path"
+                error_msg = lang['error_occurred'] + "Неверный путь к Java."
             
             else:
                 error_details["type"] = "generic"

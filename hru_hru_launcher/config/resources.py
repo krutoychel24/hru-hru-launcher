@@ -7,6 +7,7 @@ CONSOLE_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height
 VERSION_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-package"><path d="M16.5 9.4 7.5 4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>'''
 USERNAME_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'''
 MODS_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-plus"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/><line x1="12" x2="12" y1="10" y2="16"/><line x1="9" x2="15" y1="13" y2="13"/></svg>'''
+DOWNLOAD_MOD_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download-cloud"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></svg>'''
 MODPACKS_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grid"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>'''
 VPN_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'''
 INSTALLED_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-circle-2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg>'''
@@ -49,6 +50,9 @@ LANGUAGES = {
         "error_jvm_args_fix": "Рекомендуется очистить поле пользовательских аргументов JVM в настройках.",
         "error_manual_java_path_desc": "Лаунчер не смог автоматически найти рабочую версию Java на вашем компьютере.",
         "error_manual_java_path_fix": "Убедитесь, что у вас установлена Java (17+), и попробуйте указать путь к файлу 'javaw.exe' вручную в расширенных настройках.",
+        "error_fabric_dependency_title": "Нехватка зависимостей",
+        "error_fabric_dependency_desc": "Для запуска игры необходим мод '{dependency}', который отсутствует.",
+        "error_fabric_dependency_fix": "Хотите найти и установить его сейчас?",
         "error_searching_mods": "Ошибка при поиске модов ('{query}'): {e}",
         "error_getting_project_details": "Не удалось получить детали проекта {project_id}: {e}",
         "error_reading_mod_id": "Не удалось прочитать mod ID из {filename}: {e}",
@@ -94,6 +98,9 @@ LANGUAGES = {
         "error_jvm_args_fix": "It is recommended to clear the custom JVM arguments field in the settings.",
         "error_manual_java_path_desc": "The launcher could not automatically find a working Java installation on your computer.",
         "error_manual_java_path_fix": "Please ensure Java (17+) is installed, and try specifying the path to 'javaw.exe' manually in the advanced settings.",
+        "error_fabric_dependency_title": "Missing Dependency",
+        "error_fabric_dependency_desc": "The game requires the mod '{dependency}', which is missing.",
+        "error_fabric_dependency_fix": "Would you like to search for and install it now?",
         "error_searching_mods": "Error searching for mods ('{query}'): {e}",
         "error_getting_project_details": "Failed to get project details for {project_id}: {e}",
         "error_reading_mod_id": "Could not read mod ID from {filename}: {e}",
@@ -139,6 +146,9 @@ LANGUAGES = {
         "error_jvm_args_fix": "Рекомендується очистити поле власних аргументів JVM у налаштуваннях.",
         "error_manual_java_path_desc": "Лаунчер не зміг автоматично знайти робочу версію Java на вашому комп'ютері.",
         "error_manual_java_path_fix": "Переконайтеся, що у вас встановлена Java (17+), і спробуйте вказати шлях до файлу 'javaw.exe' вручну в розширених налаштуваннях.",
+        "error_fabric_dependency_title": "Нестача залежностей",
+        "error_fabric_dependency_desc": "Для запуску гри потрібен мод '{dependency}', який відсутній.",
+        "error_fabric_dependency_fix": "Хочете знайти та встановити його зараз?",
         "error_searching_mods": "Помилка під час пошуку модів ('{query}'): {e}",
         "error_getting_project_details": "Не вдалося отримати деталі проекту {project_id}: {e}",
         "error_reading_mod_id": "Не вдалося прочитати mod ID з {filename}: {e}",
