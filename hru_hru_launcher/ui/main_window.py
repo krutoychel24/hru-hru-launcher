@@ -33,7 +33,7 @@ from ..utils.paths import get_assets_dir
 from ..config import resources, settings
 
 # --- AUTO-UPDATE SETTINGS ---
-APP_VERSION = "v1.1.2-beta"
+APP_VERSION = "v1.1.3-beta"
 API_URL = "https://api.github.com/repos/krutoychel24/hru-hru-launcher/releases/latest"
 DOWNLOAD_URL_TEMPLATE = "https://github.com/krutoychel24/hru-hru-launcher/releases/download/{tag}/{filename}"
 # --- END AUTO-UPDATE SETTINGS ---
