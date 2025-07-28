@@ -1,5 +1,3 @@
-# hru_hru_launcher/ui/main_window.py
-
 import sys
 import os
 import json
@@ -11,6 +9,7 @@ import re
 import math
 from functools import partial
 from pathlib import Path
+import psutil
 
 import requests
 from PySide6.QtCore import (Qt, QThread, Signal, QPropertyAnimation, QEasingCurve, QSize, QPoint, QUrl, QByteArray)
@@ -41,10 +40,11 @@ DOWNLOAD_URL_TEMPLATE = "https://github.com/krutoychel24/hru-hru-launcher/releas
 
 
 class FixErrorDialog(QDialog):
-    def __init__(self, error_title, error_desc, fix_suggestion, lang_dict, parent=None):
+    def __init__(self, error_title, error_desc, fix_suggestion, lang_dict, parent=None, icon_svg=None):
         super().__init__(parent)
         self.lang_dict = lang_dict
         self.old_pos = None
+        self.icon_data = icon_svg if icon_svg is not None else resources.ALERT_ICON_SVG
         self.init_ui(error_title, error_desc, fix_suggestion)
         self.apply_styles(parent.current_accent_color if parent else "#1DB954")
         
@@ -73,7 +73,7 @@ class FixErrorDialog(QDialog):
         header_layout = QHBoxLayout(self.header_frame)
         header_layout.setContentsMargins(20, 15, 20, 15)
         icon_pixmap = QPixmap()
-        icon_pixmap.loadFromData(resources.ALERT_ICON_SVG)
+        icon_pixmap.loadFromData(self.icon_data)
         icon_label = QLabel()
         icon_label.setPixmap(icon_pixmap.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         dialog_title_label = QLabel(self.lang_dict.get("error_dialog_title", "Error Detected"))
@@ -456,6 +456,7 @@ class VersionSizeScannerWorker(QThread):
 class MinecraftLauncher(QWidget):
     def __init__(self):
         super().__init__()
+        self.total_system_memory = 16
         self.worker = None
         self.version_loader = None
         self.mod_search_worker = None
@@ -504,6 +505,9 @@ class MinecraftLauncher(QWidget):
         self.fade_in_animation.setEasingCurve(QEasingCurve.OutCubic)
         
         self.update_pagination_controls()
+        
+        self.update_mod_list()
+        self.refresh_installed_mods()
 
     def init_fonts(self):
         assets_dir = get_assets_dir()
@@ -756,15 +760,28 @@ class MinecraftLauncher(QWidget):
         self.memory_label = QLabel()
         self.memory_label.setFont(self.subtitle_font)
         self.memory_slider = QSlider(Qt.Horizontal)
-        self.memory_slider.setRange(1, 16)
-        self.memory_slider.setValue(self.settings.get("memory", 4))
+
+        try:
+            self.total_system_memory = int(psutil.virtual_memory().total / (1024**3))
+            self.memory_slider.setRange(1, self.total_system_memory)
+        except Exception as e:
+            logging.error(f"Unable to determine RAM capacity: {e}")
+            self.total_system_memory = 16 
+            self.memory_slider.setRange(1, self.total_system_memory)
+
+        current_mem = self.settings.get("memory", 4)
+        if current_mem > self.total_system_memory:
+            current_mem = self.total_system_memory
+        self.memory_slider.setValue(current_mem)
+
         self.memory_slider.setTickPosition(QSlider.TicksBelow)
         self.memory_slider.setTickInterval(1)
-        self.memory_value_label = QLabel(f"{self.settings.get('memory', 4)} GB")
+        self.memory_value_label = QLabel(f"{self.memory_slider.value()} GB")
         self.memory_slider.valueChanged.connect(self.update_memory_feedback)
         self.memory_feedback_label = QLabel()
         self.memory_feedback_label.setAlignment(Qt.AlignCenter)
-        self.update_memory_feedback(self.memory_slider.value())
+        self.update_memory_feedback(self.memory_slider.value()) 
+
         self.resolution_label = QLabel()
         self.resolution_label.setFont(self.subtitle_font)
         resolution_layout = QHBoxLayout()
@@ -782,7 +799,7 @@ class MinecraftLauncher(QWidget):
         self.advanced_settings_button = QPushButton()
         self.advanced_settings_button.setCheckable(False)
         self.advanced_settings_button.clicked.connect(self.open_advanced_settings)
-        
+    
         settings_layout.addWidget(self.lang_label)
         settings_layout.addWidget(self.language_combo)
         settings_layout.addSpacing(10)
@@ -801,10 +818,10 @@ class MinecraftLauncher(QWidget):
         settings_layout.addSpacing(10)
         settings_layout.addWidget(self.fullscreen_checkbox)
         settings_layout.addWidget(self.close_launcher_checkbox)
-        
+    
         settings_layout.addStretch()
         settings_layout.addWidget(self.advanced_settings_button)
-        
+    
         self.tab_widget.addTab(self.settings_tab_widget, self.settings_icon, "")
 
     def create_placeholder_tab(self, icon, tab_name):
@@ -1513,6 +1530,15 @@ class MinecraftLauncher(QWidget):
         worker.start()
         logging.info(f"Thread for download project_id='{project_id}' started successfully.")
 
+    def install_mod_dependency(self, dependency_name):
+        mods_tab_index = self.tab_widget.indexOf(self.mods_tab_widget)
+        if mods_tab_index != -1:
+            self.tab_widget.setCurrentIndex(mods_tab_index)
+        self.mods_sub_tabs.setCurrentIndex(0)
+        self.mod_search_input.setText(dependency_name)
+        self.update_mod_list(reset_page=True)
+        self.log_to_console(f"Automatically searching for dependency: {dependency_name}")
+        
     def on_mod_download_progress(self, project_id, percentage):
         if project_id in self.mod_list_item_map:
             card_widget = self.mod_list_item_map[project_id]
@@ -1662,7 +1688,15 @@ class MinecraftLauncher(QWidget):
         if result != "success" and details:
             error_type = details.get("type")
             self.log_to_console(f"Получена ошибка типа: {error_type}")
-            if error_type == "file_corruption":
+            if error_type == "fabric_dependency_error":
+                dependency = details.get("dependency", "required mods")
+                title = lang.get("error_fabric_dependency_title")
+                desc = lang.get("error_fabric_dependency_desc").format(dependency=dependency)
+                fix = lang.get("error_fabric_dependency_fix")
+                dialog = FixErrorDialog(title, desc, fix, lang, self, icon_svg=resources.DOWNLOAD_MOD_ICON_SVG)
+                if dialog.exec() == QDialog.Accepted:
+                    self.install_mod_dependency(dependency)
+            elif error_type == "file_corruption":
                 version_id = details.get("version_id", "выбранной")
                 title = lang.get("error_file_corruption_title")
                 desc = lang.get("error_file_corruption_desc").format(version_id=version_id)
