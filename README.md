@@ -82,6 +82,15 @@ python launcher.py
 ```
 
 ---
+
+### Also featured on:
+* Dev.to article — [Introducing HruHruLauncher: A Custom Minecraft Launcher in Python](https://dev.to/krutoychel24/introducing-hruhrulauncher-a-custom-minecraft-launcher-written-in-python-with-pyside6-h2i)
+* Libhunt listing — [HruHruLauncher on Python LibHunt](https://python.libhunt.com/hru-hru-launcher-alternatives)
+
+Feel free to ⭐️ the project or share your thoughts — all feedback is welcome!
+
+---
+
 ### Disclaimer
 
 This is an unofficial Minecraft launcher. It is not affiliated with Mojang, Microsoft, or Minecraft.
