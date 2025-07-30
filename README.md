@@ -78,7 +78,7 @@ To set up and run this project locally, follow these steps:
 After setting up the environment, you can run the launcher directly from the Python script:
 
 ```bash
-python launcher.py
+python -m hru_hru_launcher.main
 ```
 
 ---
