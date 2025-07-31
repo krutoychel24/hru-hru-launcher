@@ -1,3 +1,5 @@
+# resources.py
+
 # --- SVG ICONS ---
 ALERT_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield-alert"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>'''
 PLAY_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play"><polygon points="5 3 19 12 5 21 5 3"/></svg>'''
@@ -16,7 +18,13 @@ MANAGE_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height=
 REPAIR_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>'''
 DELETE_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'''
 FABRIC_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pickaxe-icon lucide-pickaxe"><path d="M14.531 12.469 6.619 20.38a1 1 0 1 1-3-3l7.912-7.912"/><path d="M15.686 4.314A12.5 12.5 0 0 0 5.461 2.958 1 1 0 0 0 5.58 4.71a22 22 0 0 1 6.318 3.393"/><path d="M17.7 3.7a1 1 0 0 0-1.4 0l-4.6 4.6a1 1 0 0 0 0 1.4l2.6 2.6a1 1 0 0 0 1.4 0l4.6-4.6a1 1 0 0 0 0-1.4z"/><path d="M19.686 8.314a12.501 12.501 0 0 1 1.356 10.225 1 1 0 0 1-1.751-.119 22 22 0 0 0-3.393-6.319"/></svg>'''
-FORGE_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pickaxe-icon lucide-pickaxe"><path d="M14.531 12.469 6.619 20.38a1 1 0 1 1-3-3l7.912-7.912"/><path d="M15.686 4.314A12.5 12.5 0 0 0 5.461 2.958 1 1 0 0 0 5.58 4.71a22 22 0 0 1 6.318 3.393"/><path d="M17.7 3.7a1 1 0 0 0-1.4 0l-4.6 4.6a1 1 0 0 0 0 1.4l2.6 2.6a1 1 0 0 0 1.4 0l4.6-4.6a1 1 0 0 0 0-1.4z"/><path d="M19.686 8.314a12.501 12.501 0 0 1 1.356 10.225 1 1 0 0 1-1.751-.119 22 22 0 0 0-3.393-6.319"/></svg>'''
+FORGE_ICON_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-anvil"><path d="M7 10a2.3 2.3 0 0 0-2.3 2.3V14h14v-1.7A2.3 2.3 0 0 0 16.5 10Z"/><path d="m7 10-4.3 4.3a1 1 0 0 0 0 1.4l3.6 3.6a1 1 0 0 0 1.4 0L12 15"/><path d="M12 15h4.8a2.3 2.3 0 0 0 2.3-2.3V10l-4.5 4.3a1 1 0 0 1-1.4 0Z"/><path d="M5 10V8a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v2"/><path d="M12 4v3"/></svg>'''
+CANCEL_ICON_SVG = b"""
+<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#FFFFFF">
+    <path d="M0 0h24v24H0V0z" fill="none"/>
+    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
+</svg>
+"""
 
 # --- localisation ---
 LANGUAGES = {
@@ -60,13 +68,17 @@ LANGUAGES = {
         "file_downloaded_successfully": "Файл {filename} успешно скачан.", "error_downloading_file": "Ошибка скачивания {filename}: {e}",
         "search": "Поиск", "installed": "Установленные", "scanning": "Сканирование...", "no_local_mods_found": "Моды в папке не найдены.",
         "versions_management": "Версии", "no_versions_installed": "Установленных версий нет.",
+        "calculating_size": "Подсчет размера...", "total_versions_size": "Общий размер: {size}",
         "error_scanning_versions": "Ошибка при сканировании версий.", "open_folder": "Папка", "repair": "Починить",
         "delete": "Удалить", "version_id_tooltip": "ID Версии", "folder_name_tooltip": "Имя папки",
         "confirm_delete_title": "Подтвердите удаление", "confirm_delete_text": "Вы уверены, что хотите удалить версию '{version_id}'? Это действие необратимо.",
         "confirm_repair_title": "Подтвердите восстановление", "confirm_repair_text": "Это удалит все файлы версии '{version_id}', и они будут скачаны заново при следующем запуске. Продолжить?",
         "version_type_label": "Тип: {type}", "tooltip_settings": "Настройки", "tooltip_console": "Консоль",
         "select_version_dialog_title": "Выберите версию", "select_version_prompt": "Для версии {base_version} найдено несколько вариантов. Выберите, к какому применить действие.",
-        "action_button_delete": "Удалить выбранное", "action_button_repair": "Починить выбранное", "action_button_open_folder": "Открыть папку выбранного"
+        "action_button_delete": "Удалить выбранное", "action_button_repair": "Починить выбранное", "action_button_open_folder": "Открыть папку выбранного",
+        "delete_selected": "Удалить выбранное",
+        "confirm_multi_delete_title": "Подтвердите удаление",
+        "confirm_multi_delete_text": "Вы уверены, что хотите удалить следующие {count} версий?\n\n - {versions}"
     },
     "en": {
         "title": "Hru Hru Launcher", "version": "Version", "username": "Username",
@@ -108,13 +120,17 @@ LANGUAGES = {
         "file_downloaded_successfully": "File {filename} downloaded successfully.", "error_downloading_file": "Error downloading {filename}: {e}",
         "search": "Search", "installed": "Installed", "scanning": "Scanning...", "no_local_mods_found": "No mods found in folder.",
         "versions_management": "Versions", "no_versions_installed": "No versions installed.",
+        "calculating_size": "Calculating size...", "total_versions_size": "Total size: {size}",
         "error_scanning_versions": "Error while scanning versions.", "open_folder": "Folder", "repair": "Repair",
         "delete": "Delete", "version_id_tooltip": "Version ID", "folder_name_tooltip": "Folder name",
         "confirm_delete_title": "Confirm Deletion", "confirm_delete_text": "Are you sure you want to delete version '{version_id}'? This action cannot be undone.",
         "confirm_repair_title": "Confirm Repair", "confirm_repair_text": "This will delete all files for version '{version_id}' and they will be redownloaded on the next launch. Continue?",
         "version_type_label": "Type: {type}", "tooltip_settings": "Settings", "tooltip_console": "Console",
         "select_version_dialog_title": "Select Version", "select_version_prompt": "Multiple variants found for {base_version}. Please choose which one to affect.",
-        "action_button_delete": "Delete Selected", "action_button_repair": "Repair Selected", "action_button_open_folder": "Open Selected Folder"
+        "action_button_delete": "Delete Selected", "action_button_repair": "Repair Selected", "action_button_open_folder": "Open Selected Folder",
+        "delete_selected": "Delete Selected",
+        "confirm_multi_delete_title": "Confirm Deletion",
+        "confirm_multi_delete_text": "Are you sure you want to delete the following {count} versions?\n\n - {versions}"
     },
     "ua": {
         "title": "Hru Hru Launcher", "version": "Версія", "username": "Нікнейм",
@@ -156,12 +172,16 @@ LANGUAGES = {
         "file_downloaded_successfully": "Файл {filename} успішно завантажено.", "error_downloading_file": "Помилка завантаження {filename}: {e}",
         "search": "Пошук", "installed": "Встановлені", "scanning": "Сканування...", "no_local_mods_found": "Моди в папці не знайдено.",
         "versions_management": "Версії", "no_versions_installed": "Встановлених версій немає.",
+        "calculating_size": "Підрахунок розміру...", "total_versions_size": "Загальний розмір: {size}",
         "error_scanning_versions": "Помилка під час сканування версій.", "open_folder": "Папка", "repair": "Полагодити",
         "delete": "Видалити", "version_id_tooltip": "ID Версії", "folder_name_tooltip": "Ім'я папки",
         "confirm_delete_title": "Підтвердіть видалення", "confirm_delete_text": "Ви впевнені, що хочете видалити версію '{version_id}'? Ця дія незворотна.",
         "confirm_repair_title": "Підтвердіть відновлення", "confirm_repair_text": "Це видалить усі файли версії '{version_id}', і вони будуть завантажені знову при наступному запуску. Продовжити?",
         "version_type_label": "Тип: {type}", "tooltip_settings": "Налаштування", "tooltip_console": "Консоль",
         "select_version_dialog_title": "Виберіть версію", "select_version_prompt": "Для версії {base_version} знайдено декілька варіантів. Виберіть, до якого застосувати дію.",
-        "action_button_delete": "Видалити обране", "action_button_repair": "Полагодити обране", "action_button_open_folder": "Відкрити папку обраного"
+        "action_button_delete": "Видалити обране", "action_button_repair": "Полагодити обране", "action_button_open_folder": "Відкрити папку обраного",
+        "delete_selected": "Видалити обране",
+        "confirm_multi_delete_title": "Підтвердіть видалення",
+        "confirm_multi_delete_text": "Ви впевнені, що хочете видалити наступні {count} версій?\n\n - {versions}"
     }
 }

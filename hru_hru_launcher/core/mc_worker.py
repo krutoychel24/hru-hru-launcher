@@ -1,21 +1,30 @@
+# hru_hru_launcher/core/mc_worker.py
+
 import os
 import sys
 import uuid
 import subprocess
 import re
+import traceback
+import logging
+import shutil
 from datetime import datetime
 
 from PySide6.QtCore import QThread, Signal
 import minecraft_launcher_lib
+from requests.exceptions import RequestException
 
 from .profile_manager import create_launcher_profiles_if_needed, add_profile
-from ..config import resources, settings
+from ..config import resources
 
 class GameProcessError(Exception):
     def __init__(self, message, exit_code, output=""):
         super().__init__(message)
         self.exit_code = exit_code
         self.output = output
+
+class InterruptedError(Exception):
+    pass
 
 
 class MinecraftWorker(QThread):
@@ -45,6 +54,28 @@ class MinecraftWorker(QThread):
         self.options = options if options else {}
         self.lang = lang
         self.mod_loader = mod_loader
+        self._is_running = True
+        self._versions_before_install = set()
+        self._is_installing = False
+
+    def stop(self):
+        self.log_message.emit("Cancellation requested...")
+        self._is_running = False
+        
+    def _get_stoppable_callback(self):
+        lang_dict = resources.LANGUAGES[self.lang]
+        
+        def set_status(text):
+            if not self._is_running: raise InterruptedError()
+            self.log_and_update_status(text)
+            
+        def set_progress(value, max_value=0):
+            if not self._is_running: raise InterruptedError()
+            if max_value > 0:
+                status_text = lang_dict.get('downloading_files', 'Downloading files')
+                self.progress_update.emit(value, max_value, status_text)
+        
+        return { "setStatus": set_status, "setProgress": set_progress }
 
     def _detect_forge_id(self, versions, base_mc_version):
         build = self.mc_version.split("-")[-1]
@@ -53,34 +84,48 @@ class MinecraftWorker(QThread):
             if "forge" in vid and base_mc_version in vid and build in vid:
                 return vid
         return None
+        
+    def _cleanup_interrupted_install(self):
+        """Deletes partially installed version directory."""
+        self.log_message.emit("Cleaning up partially installed files...")
+        try:
+            versions_after = {v["id"] for v in minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)}
+            newly_created_versions = versions_after - self._versions_before_install
+            
+            if not newly_created_versions:
+                self.log_message.emit("No new version folders found to clean up.")
+                return
+
+            for version_id in newly_created_versions:
+                version_path = os.path.join(self.minecraft_dir, "versions", version_id)
+                if os.path.isdir(version_path):
+                    shutil.rmtree(version_path)
+                    self.log_message.emit(f"Removed broken version directory: {version_id}")
+            self.log_message.emit("Cleanup complete.")
+        except Exception as e:
+            self.log_message.emit(f"Cleanup failed: {e}")
+            self.log_message.emit(traceback.format_exc())
 
     def run(self):
-        callback = {
-            "setStatus": lambda text: self.log_and_update_status(text),
-            "setProgress": lambda value: self.progress_update.emit(
-                value, 100, f"{resources.LANGUAGES[self.lang]['downloading']} {value}%"
-            ),
-            "setMax": lambda value: None,
-        }
-        
         version_id_to_launch = ""
-        command = []
-
+        game_output = ""
         try:
+            callback = self._get_stoppable_callback()
+            
             create_launcher_profiles_if_needed(self.minecraft_dir, self.client_token)
             
-            base_mc_version = (
-                self.mc_version.split("-")[0]
-                if self.mod_loader == "forge"
-                else self.mc_version
-            )
+            base_mc_version = self.mc_version.split("-")[0] if self.mod_loader == "forge" else self.mc_version
+
+            if not self._is_running: raise InterruptedError()
 
             installed_version_ids = [v["id"] for v in minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)]
+            
+            self._is_installing = True
+            self._versions_before_install = set(installed_version_ids)
+            
             if base_mc_version not in installed_version_ids:
                 self.log_and_update_status(f"Base version {base_mc_version} not found. Installing...")
-                minecraft_launcher_lib.install.install_minecraft_version(
-                    base_mc_version, self.minecraft_dir, callback=callback
-                )
+                minecraft_launcher_lib.install.install_minecraft_version(base_mc_version, self.minecraft_dir, callback=callback)
             else:
                 self.log_and_update_status(f"Base version {base_mc_version} already installed.")
 
@@ -89,44 +134,20 @@ class MinecraftWorker(QThread):
 
             if self.mod_loader in ["fabric", "forge"]:
                 mods_path = os.path.join(self.minecraft_dir, "mods")
-                if not os.path.exists(mods_path):
-                    os.makedirs(mods_path)
-                    self.log_and_update_status(f"Created 'mods' folder")
+                os.makedirs(mods_path, exist_ok=True)
+                
+                if not self._is_running: raise InterruptedError()
 
                 if self.mod_loader == "fabric":
-                    installed_versions_data = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
-                    fabric_versions = [v for v in installed_versions_data if v["id"].startswith(f"fabric-loader-") and base_mc_version in v["id"]]
-                    
-                    if not fabric_versions:
-                        self.log_and_update_status(f"Installing Fabric for {base_mc_version}")
-                        minecraft_launcher_lib.fabric.install_fabric(
-                            base_mc_version, self.minecraft_dir, callback=callback
-                        )
-                        installed_versions_data_after = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
-                        fabric_versions = [v for v in installed_versions_data_after if v["id"].startswith(f"fabric-loader-") and base_mc_version in v["id"]]
-                        if not fabric_versions:
-                            raise Exception(f"Fabric for Minecraft {base_mc_version} not found after installation.")
-                        self.log_and_update_status(f"Fabric installed: {fabric_versions[0]['id']}")
-                    else:
-                        self.log_and_update_status(f"Found existing Fabric version: {fabric_versions[0]['id']}")
-                    
-                    version_id_to_launch = fabric_versions[0]["id"]
+                    version_id_to_launch = minecraft_launcher_lib.fabric.install_fabric(base_mc_version, self.minecraft_dir, callback=callback)
                     profile_name = f"{base_mc_version} Fabric"
                 
                 elif self.mod_loader == "forge":
                     all_installed = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
                     version_id_to_launch = self._detect_forge_id(all_installed, base_mc_version)
-
                     if not version_id_to_launch:
                         self.log_and_update_status(f"Installing Forge {self.mc_version}")
-                        try:
-                            minecraft_launcher_lib.forge.install_forge_version(
-                                self.mc_version, self.minecraft_dir, callback=callback
-                            )
-                        except Exception as forge_install_error:
-                            self.log_message.emit(f"Forge installation failed: {forge_install_error}.")
-                            raise forge_install_error
-                        
+                        minecraft_launcher_lib.forge.install_forge_version(self.mc_version, self.minecraft_dir, callback=callback)
                         all_installed_after = minecraft_launcher_lib.utils.get_installed_versions(self.minecraft_dir)
                         version_id_to_launch = self._detect_forge_id(all_installed_after, base_mc_version)
                         if not version_id_to_launch:
@@ -134,107 +155,82 @@ class MinecraftWorker(QThread):
                         self.log_and_update_status(f"New Forge version installed: {version_id_to_launch}")
                     else:
                         self.log_and_update_status(f"Found existing Forge version: {version_id_to_launch}")
-                    
                     profile_name = f"{base_mc_version} Forge"
             
+            self._is_installing = False
             add_profile(self.minecraft_dir, version_id_to_launch, profile_name)
 
             custom_jvm_args = self.options.get("jvmArguments", [])
             all_jvm_args = [f"-Xmx{self.memory_gb}G", f"-Xms{self.memory_gb}G"] + custom_jvm_args
             
             launch_options = {
-                "username": self.username,
-                "uuid": str(uuid.uuid3(uuid.NAMESPACE_DNS, self.username)),
-                "token": "0",
-                "jvmArguments": all_jvm_args,
-                "fullscreen": self.fullscreen,
-                "gameDirectory": self.minecraft_dir,
+                "username": self.username, "uuid": str(uuid.uuid3(uuid.NAMESPACE_DNS, self.username)), "token": "0",
+                "jvmArguments": all_jvm_args, "fullscreen": self.fullscreen, "gameDirectory": self.minecraft_dir,
                 "executablePath": self.options.get("executablePath"),
-                "resolutionWidth": self.options.get("resolutionWidth"),
-                "resolutionHeight": self.options.get("resolutionHeight"),
+                "resolutionWidth": self.options.get("resolutionWidth"), "resolutionHeight": self.options.get("resolutionHeight"),
+                "launchTarget": "minecraft"
             }
-            
             launch_options = {k: v for k, v in launch_options.items() if v}
 
-            self.log_and_update_status(resources.LANGUAGES[self.lang]["starting"])
-            self.log_message.emit(f"Using Minecraft data directory: {self.minecraft_dir}")
-
-            command = minecraft_launcher_lib.command.get_minecraft_command(
-                version_id_to_launch, self.minecraft_dir, launch_options
-            )
-
-            if not self.options.get("executablePath"):
-                java_path = command[0]
-                if sys.platform == "win32" and "java.exe" in java_path.lower():
-                    javaw_path = java_path.replace("java.exe", "javaw.exe")
-                    if os.path.exists(javaw_path):
-                        command[0] = javaw_path
-                        self.log_message.emit(f"Switched to javaw.exe for game launch: {javaw_path}")
-                    else:
-                        self.log_message.emit(f"javaw.exe not found at {javaw_path}. Falling back to java.exe.")
+            if not self._is_running: raise InterruptedError()
             
-            creationflags = 0
-            if sys.platform == "win32":
-                creationflags = subprocess.CREATE_NO_WINDOW
+            self.log_and_update_status(resources.LANGUAGES[self.lang]["starting"])
+            command = minecraft_launcher_lib.command.get_minecraft_command(version_id_to_launch, self.minecraft_dir, launch_options)
 
-            process = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                creationflags=creationflags,
-                cwd=self.minecraft_dir,
-            )
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", creationflags=(subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0), cwd=self.minecraft_dir)
+            
+            output_lines = []
+            while self._is_running:
+                if process.poll() is not None: break
+                for line in iter(process.stdout.readline, ""):
+                    if not line: break
+                    clean_line = line.strip()
+                    self.log_message.emit(clean_line)
+                    output_lines.append(clean_line)
+                self.msleep(50)
+            
+            game_output = "\n".join(output_lines)
 
-            process_output_lines = []
-            for line in iter(process.stdout.readline, ""):
-                stripped_line = line.strip()
-                self.log_message.emit(stripped_line)
-                process_output_lines.append(stripped_line)
-
-            process.wait()
+            if not self._is_running:
+                self.log_message.emit("Terminating game process...")
+                process.terminate()
+                process.wait(timeout=5)
+                raise InterruptedError()
 
             exit_code = process.returncode
             if exit_code != 0:
-                full_output = "\n".join(process_output_lines)
-                self.log_message.emit(f"Процесс завершился с кодом {exit_code}. Вероятно, произошла ошибка.")
-                raise GameProcessError(f"Game process exited with code {exit_code}", exit_code, full_output)
+                raise GameProcessError(f"Game process exited with code {exit_code}", exit_code, game_output)
 
             self.finished.emit("success", None)
 
+        except InterruptedError:
+            self.log_message.emit("Launch was successfully cancelled.")
+            if self._is_installing:
+                self._cleanup_interrupted_install()
+            self.finished.emit("cancelled", None)
+        except RequestException as e:
+            error_msg = resources.LANGUAGES[self.lang].get("error_network_desc", "Could not connect to Mojang servers.")
+            self.log_message.emit(f"ERROR: {error_msg} Details: {e}")
+            self.finished.emit("error", {"type": "network_error", "message": error_msg})
         except Exception as e:
             error_details = {"message": str(e), "version_id": version_id_to_launch}
-            lang = resources.LANGUAGES[self.lang]
             
-            if isinstance(e, GameProcessError):
-                if self.mod_loader == "fabric" and "Incompatible mods found!" in e.output and "Fix: add" in e.output:
-                    error_details["type"] = "fabric_dependency_error"
-                    match = re.search(r"Fix: add \[add:([\w-]+)", e.output)
-                    dependency = match.group(1) if match else "a required dependency"
-                    error_details["dependency"] = dependency
-                    error_msg = lang['error_occurred'] + f"Missing dependency: {dependency}"
-                elif e.exit_code == 1:
+            if "Could not find net/minecraft/client/Minecraft.class" in game_output:
+                error_details["type"] = "file_corruption"
+            elif isinstance(e, GameProcessError):
+                if e.exit_code == 1:
                     error_details["type"] = "invalid_jvm_argument"
-                    error_msg = lang['error_occurred'] + "Неверный аргумент или настройка JVM."
                 else:
                     error_details["type"] = "file_corruption"
-                    error_msg = lang['error_occurred'] + "Игра аварийно завершилась. Возможно, файлы повреждены."
-            
             elif isinstance(e, FileNotFoundError):
                 error_details["type"] = "invalid_java_path"
-                error_msg = lang['error_occurred'] + "Неверный путь к Java."
-            
             else:
                 error_details["type"] = "generic"
-                error_msg = f"{lang['error_occurred']}{e}"
 
-            self.log_message.emit(f"ERROR: {error_msg}")
-            import traceback
+            self.log_message.emit(f"ERROR: An error occurred: {e}")
             self.log_message.emit(traceback.format_exc())
             self.finished.emit("error", error_details)
 
     def log_and_update_status(self, text):
-        self.progress_update.emit(0, 1, text)
+        self.progress_update.emit(0, 0, text) 
         self.log_message.emit(f"[{datetime.now().strftime('%H:%M:%S')}] {text}")

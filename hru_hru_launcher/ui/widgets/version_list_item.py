@@ -1,14 +1,13 @@
-# hru_hru_launcher/ui/widgets/version_list_item.py
-
 import math
 from PySide6.QtCore import Qt, Signal, QSize
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QCheckBox
 from PySide6.QtGui import QIcon
 
 class VersionListItemWidget(QWidget):
     delete_requested = Signal(str)
     repair_requested = Signal(str)
     open_folder_requested = Signal(str)
+    selection_changed = Signal(str, bool)
 
     def __init__(self, base_version, version_types, icons, lang_dict, parent=None):
         super().__init__(parent)
@@ -17,13 +16,14 @@ class VersionListItemWidget(QWidget):
         self.icons = icons
         self.lang_dict = lang_dict
         self.init_ui()
-        self.apply_styles() 
+        self.apply_styles()
 
     def get_main_icon(self):
-        if 'Fabric' in self.version_types:
-            return self.icons["fabric"]
-        if 'Forge' in self.version_types:
-            return self.icons["forge"]
+        lower_types = [v.lower() for v in self.version_types]
+        if 'fabric' in lower_types:
+            return self.icons.get("fabric", self.icons["vanilla"])
+        if 'forge' in lower_types:
+            return self.icons.get("forge", self.icons["vanilla"])
         return self.icons["vanilla"]
 
     def init_ui(self):
@@ -33,11 +33,17 @@ class VersionListItemWidget(QWidget):
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(15, 10, 15, 10)
 
+        self.checkbox = QCheckBox()
+        self.checkbox.setFixedSize(20, 20)
+        self.checkbox.clicked.connect(self.on_selection_changed)
+        main_layout.addWidget(self.checkbox)
+        main_layout.addSpacing(10)
+
         icon_label = QLabel()
         icon_label.setPixmap(self.get_main_icon().pixmap(QSize(36, 36)))
         icon_label.setFixedSize(48, 48)
         icon_label.setAlignment(Qt.AlignCenter)
-        
+
         info_layout = QVBoxLayout()
         info_layout.setSpacing(2)
         
@@ -79,7 +85,8 @@ class VersionListItemWidget(QWidget):
 
     def create_button(self, text, icon, on_click):
         button = QPushButton(text)
-        button.setIcon(icon)
+        if icon:
+            button.setIcon(icon)
         button.setIconSize(QSize(16, 16))
         button.clicked.connect(on_click)
         return button
@@ -92,6 +99,12 @@ class VersionListItemWidget(QWidget):
 
     def open_folder(self):
         self.open_folder_requested.emit(self.base_version)
+
+    def on_selection_changed(self):
+        self.selection_changed.emit(self.base_version, self.checkbox.isChecked())
+
+    def is_selected(self):
+        return self.checkbox.isChecked()
 
     @staticmethod
     def format_size(size_bytes):
@@ -127,6 +140,13 @@ class VersionListItemWidget(QWidget):
             #versionSizeLabel {
                 font-size: 9pt;
                 color: #f1fa8c;
+            }
+            QCheckBox {
+                spacing: 0px;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
             }
             #versionCard QPushButton {
                 background-color: #6272a4;
