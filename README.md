@@ -7,13 +7,18 @@ Hru Hru Launcher is a custom Minecraft launcher built with Python and PySide6, p
 
 * **Multi-Version Support:** Easily launch Vanilla, Forge, and Fabric versions of Minecraft.
 * **User-Friendly Interface:** A clean and intuitive graphical user interface (GUI) built with PySide6.
-* **Customizable Settings:** Adjust language (English/Russian), theme (Dark, Light, Neon), allocated memory, fullscreen mode, and launcher behavior after game launch.
+* **Customizable Settings:** Adjust language (English/Russian/Ukrainian), theme (Dark, Light, Neon), allocated memory, fullscreen mode, and launcher behavior after game launch.
 * **Advanced JVM Arguments:** Option to enable G1GC for improved performance.
 * **Dynamic Version Loading:** Automatically fetches available Minecraft versions (Vanilla, Forge, Fabric).
 * **Integrated Console:** View real-time game output and launcher logs within the application.
 * **Custom Data Directories:** Game runtime data (logs, saves, resource packs) are stored in a dedicated user-friendly folder, while core Minecraft installations remain in the standard `.minecraft` directory.
 * **Modular Codebase:** The code has been split into organized modules for better maintainability and scalability.
-* **Mod Installation (Alpha):** Basic implementation of mod installation support (early alpha).
+* **Mod Installation (Beta):** Basic mod installation support with improved mod search, pagination, and a page listing installed mods.
+* **Version Manager:** View, delete, or manage installed Minecraft versions directly from the launcher.
+* **AutoFix Function:** Automatically fixes common issues during launch or installation.
+* **Automatic RAM Detection:** Launcher can detect and recommend optimal RAM allocation.
+* **Cancel Installations:** Option to cancel ongoing Minecraft installations.
+* **Installer Available:** A downloadable setup file is now provided for easier installation.
 
 ---
 
