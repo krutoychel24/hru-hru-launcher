@@ -37,7 +37,7 @@ from .dialogs import FixErrorDialog, UpdateDialog, AdvancedSettingsDialog
 
 
 # --- SETTINGS ---
-APP_VERSION = "v1.2.1-beta"
+APP_VERSION = "v1.2.2-beta"
 API_URL = "https://api.github.com/repos/krutoychel24/hru-hru-launcher/releases/latest"
 DOWNLOAD_URL_TEMPLATE = "https://github.com/krutoychel24/hru-hru-launcher/releases/download/{tag}/{filename}"
 MODS_PER_PAGE = 20

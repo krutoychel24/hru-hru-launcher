@@ -1,5 +1,3 @@
-# hru_hru_launcher/core/mc_worker.py
-
 import os
 import sys
 import uuid
@@ -218,7 +216,10 @@ class MinecraftWorker(QThread):
             if "Could not find net/minecraft/client/Minecraft.class" in game_output:
                 error_details["type"] = "file_corruption"
             elif isinstance(e, GameProcessError):
-                if e.exit_code == 1:
+                if "IncompatibleEnvironmentException" in e.output or "InvalidLauncherSetupException" in e.output:
+                    error_details["type"] = "mod_incompatibility"
+                    error_details["message"] = "A mod is incompatible with this version of Minecraft or Forge."
+                elif e.exit_code == 1:
                     error_details["type"] = "invalid_jvm_argument"
                 else:
                     error_details["type"] = "file_corruption"
