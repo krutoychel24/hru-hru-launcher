@@ -1,14 +1,13 @@
+# hru_hru_launcher/ui/widgets/installed_mod_list_item.py
+
 import os
 import requests
-from PySide6.QtCore import Qt, Signal, QThread
-from PySide6.QtGui import QPixmap, QFont
+from PySide6.QtCore import Qt, Signal, QThread, QRect, QPropertyAnimation, QEasingCurve, QSize
+from PySide6.QtGui import QPixmap, QFont, QPainter, QPainterPath, QColor
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton
 
+
 class ImageLoaderWorker(QThread):
-    """
-    Воркер для асинхронной загрузки изображений по URL в отдельном потоке,
-    чтобы не замораживать основной интерфейс.
-    """
     image_ready = Signal(QPixmap)
 
     def __init__(self, url):
@@ -19,117 +18,184 @@ class ImageLoaderWorker(QThread):
     def run(self):
         pixmap = QPixmap()
         try:
-            headers = {'User-Agent': 'HruHruLauncher/1.0 (ImageLoader)'}
+            headers = {'User-Agent': 'HruHruLauncher/2.0 (ImageLoader)'}
             response = requests.get(self.url, stream=True, timeout=10, headers=headers)
             response.raise_for_status()
             if pixmap.loadFromData(response.content):
                 self.image_ready.emit(pixmap)
+                return
         except (requests.RequestException, Exception):
-            self.image_ready.emit(QPixmap())
+            pass
+        self.image_ready.emit(QPixmap())
+
+
+class ToggleSwitch(QPushButton):
+    """iOS-style toggle switch widget."""
+
+    def __init__(self, checked=True, parent=None):
+        super().__init__(parent)
+        self.setCheckable(True)
+        self.setChecked(checked)
+        self.setFixedSize(48, 26)
+        self.setCursor(Qt.PointingHandCursor)
+        self._update_style()
+        self.toggled.connect(lambda: self._update_style())
+
+    def _update_style(self):
+        if self.isChecked():
+            self.setStyleSheet("""
+                QPushButton {
+                    background: #1DB954;
+                    border-radius: 13px;
+                    border: none;
+                }
+            """)
+        else:
+            self.setStyleSheet("""
+                QPushButton {
+                    background: rgba(255,255,255,0.12);
+                    border-radius: 13px;
+                    border: none;
+                }
+            """)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setBrush(QColor(255, 255, 255, 220))
+        painter.setPen(Qt.NoPen)
+        if self.isChecked():
+            x = self.width() - 22
+        else:
+            x = 4
+        painter.drawEllipse(x, 3, 20, 20)
+
+
+class RoundedIconLabel(QLabel):
+    def __init__(self, size=52, radius=9, parent=None):
+        super().__init__(parent)
+        self._sz = size
+        self._r = radius
+        self._px = None
+        self.setFixedSize(size, size)
+
+    def setRoundedPixmap(self, pixmap: QPixmap):
+        self._px = pixmap.scaled(self._sz, self._sz, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self._px:
+            p = QPainter(self)
+            p.setRenderHint(QPainter.Antialiasing)
+            path = QPainterPath()
+            path.addRoundedRect(QRect(0, 0, self._sz, self._sz), self._r, self._r)
+            p.setClipPath(path)
+            p.drawPixmap(0, 0, self._px)
+
 
 class InstalledModListItemWidget(QWidget):
-    """
-    Виджет, представляющий один установленный мод в списке на вкладке "Installed".
-    """
     delete_requested = Signal(str)
     toggle_requested = Signal(str, bool)
 
     def __init__(self, mod_info, lang_dict, main_font=None, bold_font=None, parent=None):
         super().__init__(parent)
         self.mod_info = mod_info
-        self.filepath = mod_info.get("filepath")
+        self.filepath = mod_info.get("filepath", "")
         self.image_loader = None
-        
         self.lang_dict = lang_dict
         self.main_font = main_font or QFont()
         self.bold_font = bold_font or QFont()
+        self._is_enabled = mod_info.get("enabled", True)
 
         self.setObjectName("installedModCard")
         self.setup_ui()
-        self.apply_styles()
+        self._apply_style()
         self.load_icon()
 
     def setup_ui(self):
-        main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(10, 5, 10, 5)
-        main_layout.setSpacing(15)
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(8, 5, 8, 5)
 
-        self.icon_label = QLabel(self)
-        self.icon_label.setFixedSize(64, 64)
+        self._card = QWidget(self)
+        self._card.setObjectName("installedCardInner")
+        self._card.setAttribute(Qt.WA_StyledBackground, True)
+        card_layout = QHBoxLayout(self._card)
+        card_layout.setContentsMargins(12, 10, 12, 10)
+        card_layout.setSpacing(12)
+
+        # ── Icon ──────
+        self.icon_label = RoundedIconLabel(size=52, radius=9)
         self.icon_label.setAlignment(Qt.AlignCenter)
-        self.set_placeholder_icon()
-        main_layout.addWidget(self.icon_label)
+        self._set_placeholder_icon()
+        card_layout.addWidget(self.icon_label)
 
-        info_layout = QVBoxLayout()
-        info_layout.setSpacing(2)
-        
+        # ── Info ──────
+        info = QVBoxLayout()
+        info.setSpacing(2)
+
+        name_font = QFont(self.bold_font)
+        name_font.setPointSize(11)
         self.name_label = QLabel(self.mod_info.get("name", "Unknown Mod"))
-        self.name_label.setObjectName("modName")
-        
-        game_version_text = self.lang_dict.get("for_mc", "For MC:")
-        self.version_label = QLabel(f"{game_version_text} {self.mod_info.get('game_version', 'Unknown')}")
-        self.version_label.setObjectName("modDetails")
+        self.name_label.setObjectName("instModName")
+        self.name_label.setFont(name_font)
 
-        author_text = self.lang_dict.get("author", "Author:")
+        detail_font = QFont(self.main_font)
+        detail_font.setPointSize(8)
+
+        game_ver_text = self.lang_dict.get("for_mc", "MC:")
+        self.version_label = QLabel(f"{game_ver_text} {self.mod_info.get('game_version', '?')}")
+        self.version_label.setObjectName("instModDetail")
+        self.version_label.setFont(detail_font)
+
+        author_text = self.lang_dict.get("author", "by")
         self.author_label = QLabel(f"{author_text} {self.mod_info.get('author', 'Unknown')}")
-        self.author_label.setObjectName("modDetails")
-        
-        self.filename_label = QLabel(os.path.basename(self.filepath))
-        self.filename_label.setObjectName("modFilename")
+        self.author_label.setObjectName("instModDetail")
+        self.author_label.setFont(detail_font)
 
-        # --- ИЗМЕНЕНИЕ: Устанавливаем конкретные уменьшенные размеры шрифтов ---
-        
-        # Шрифт для названия мода
-        title_font = QFont(self.bold_font)
-        title_font.setPointSize(12) # Уменьшили с 14 до 12
-        self.name_label.setFont(title_font)
+        file_font = QFont(self.main_font)
+        file_font.setPointSize(7)
+        basename = os.path.basename(self.filepath) if self.filepath else ""
+        self.filename_label = QLabel(basename)
+        self.filename_label.setObjectName("instModFilename")
+        self.filename_label.setFont(file_font)
 
-        # Шрифт для деталей (версия, автор)
-        details_font = QFont(self.main_font)
-        details_font.setPointSize(9) # Уменьшили с 10 до 9
-        self.version_label.setFont(details_font)
-        self.author_label.setFont(details_font)
-        
-        # Шрифт для имени файла
-        filename_font = QFont(self.main_font)
-        filename_font.setPointSize(8) # Сделали еще меньше
-        self.filename_label.setFont(filename_font)
-        
-        # --------------------------------------------------------------------
+        info.addWidget(self.name_label)
+        info.addWidget(self.author_label)
+        info.addWidget(self.version_label)
+        info.addWidget(self.filename_label)
 
-        info_layout.addWidget(self.name_label)
-        info_layout.addWidget(self.version_label)
-        info_layout.addWidget(self.author_label)
-        info_layout.addWidget(self.filename_label)
-        
-        main_layout.addLayout(info_layout, 1)
+        card_layout.addLayout(info, 1)
 
-        action_layout = QHBoxLayout()
-        action_layout.setSpacing(10)
-        action_layout.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        # ── Actions ───
+        actions = QHBoxLayout()
+        actions.setSpacing(10)
+        actions.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
-        self.toggle_switch = QPushButton("✓" if self.mod_info.get("enabled") else "✗")
-        self.toggle_switch.setCheckable(True)
-        self.toggle_switch.setChecked(self.mod_info.get("enabled"))
-        self.toggle_switch.setFixedSize(50, 25)
-        self.toggle_switch.setObjectName("toggleSwitch")
+        self.toggle_switch = ToggleSwitch(checked=self._is_enabled)
         self.toggle_switch.toggled.connect(self.on_toggle)
+        actions.addWidget(self.toggle_switch)
 
         delete_text = self.lang_dict.get("delete", "Delete")
         self.delete_button = QPushButton(delete_text)
-        self.delete_button.setObjectName("deleteButton")
-        # Для кнопки используем основной шрифт, чтобы она не была слишком большой
-        self.delete_button.setFont(self.main_font) 
+        self.delete_button.setObjectName("instDeleteBtn")
+        self.delete_button.setFixedHeight(30)
+        self.delete_button.setFont(detail_font)
         self.delete_button.clicked.connect(lambda: self.delete_requested.emit(self.filepath))
+        actions.addWidget(self.delete_button)
 
-        action_layout.addWidget(self.toggle_switch)
-        action_layout.addWidget(self.delete_button)
+        card_layout.addLayout(actions)
+        outer.addWidget(self._card)
 
-        main_layout.addLayout(action_layout)
-
-    def set_placeholder_icon(self):
+    def _set_placeholder_icon(self):
         self.icon_label.setText("📦")
-        self.icon_label.setStyleSheet("color: #888; font-size: 24px; border: 2px solid #444; border-radius: 8px;")
+        self.icon_label.setStyleSheet("""
+            color: #555577;
+            font-size: 20px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 9px;
+        """)
 
     def load_icon(self):
         icon_url = self.mod_info.get("icon_url")
@@ -148,27 +214,44 @@ class InstalledModListItemWidget(QWidget):
         if not pixmap.isNull():
             self.icon_label.setStyleSheet("")
             self.icon_label.setText("")
-            self.icon_label.setPixmap(pixmap.scaled(64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            self.icon_label.setRoundedPixmap(pixmap)
 
     def on_toggle(self, checked):
         self.toggle_requested.emit(self.filepath, checked)
-        self.toggle_switch.setText("✓" if checked else "✗")
-        
+
+    def _apply_style(self):
+        enabled_opacity = "1.0" if self._is_enabled else "0.55"
+        self.setStyleSheet(f"""
+            #installedCardInner {{
+                background: rgba(255,255,255,0.04);
+                border-radius: 13px;
+                border: 1px solid rgba(255,255,255,0.07);
+            }}
+            #instModName {{
+                color: #f0f0ff;
+            }}
+            #instModDetail {{
+                color: #7878a0;
+            }}
+            #instModFilename {{
+                color: rgba(150,150,180,0.55);
+                font-style: italic;
+            }}
+            #instDeleteBtn {{
+                background: rgba(239,68,68,0.75);
+                color: white;
+                font-weight: bold;
+                border: none;
+                border-radius: 8px;
+                padding: 4px 12px;
+            }}
+            #instDeleteBtn:hover {{
+                background: rgba(248,79,57,0.95);
+            }}
+        """)
+
     def closeEvent(self, event):
         if self.image_loader and self.image_loader.isRunning():
             self.image_loader.quit()
             self.image_loader.wait()
         super().closeEvent(event)
-
-    def apply_styles(self):
-        self.setStyleSheet("""
-            #installedModCard { background-color: #2a2d34; border-radius: 8px; }
-            #modName { color: #ffffff; }
-            #modDetails { color: #a0a0a0; }
-            #modFilename { color: #777; font-style: italic; }
-            #deleteButton { background-color: #f44336; color: white; font-weight: bold; border: none; border-radius: 5px; padding: 5px 10px; }
-            #deleteButton:hover { background-color: #f65c51; }
-            #toggleSwitch { font-family: "Segoe UI Symbol"; font-weight: bold; border-radius: 12px; border: none; }
-            #toggleSwitch:checked { background-color: #4CAF50; color: white; }
-            #toggleSwitch:!checked { background-color: #6272a4; color: #ddd; }
-        """)
