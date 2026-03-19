@@ -37,7 +37,7 @@ from .dialogs import FixErrorDialog, UpdateDialog, AdvancedSettingsDialog
 
 
 # --- SETTINGS ---
-APP_VERSION = "v1.2.2-beta"
+APP_VERSION = "v2.0.0"
 API_URL = "https://api.github.com/repos/krutoychel24/hru-hru-launcher/releases/latest"
 DOWNLOAD_URL_TEMPLATE = "https://github.com/krutoychel24/hru-hru-launcher/releases/download/{tag}/{filename}"
 MODS_PER_PAGE = 20
@@ -259,14 +259,14 @@ class MinecraftLauncher(QWidget):
         font_id = QFontDatabase.addApplicationFont(font_path)
         if font_id != -1:
             font_families = QFontDatabase.applicationFontFamilies(font_id)
-            self.minecraft_font = QFont(font_families[0], 9)
-            self.title_font = QFont(font_families[0], 22, QFont.Bold)
-            self.subtitle_font = QFont(font_families[0], 14)
+            self.minecraft_font = QFont(font_families[0], 8)
+            self.title_font = QFont(font_families[0], 18, QFont.Bold)
+            self.subtitle_font = QFont(font_families[0], 11)
         else:
             logging.warning("Font not found. Using default font.")
-            self.minecraft_font = QFont("Arial", 10)
-            self.title_font = QFont("Arial", 24, QFont.Bold)
-            self.subtitle_font = QFont("Arial", 12)
+            self.minecraft_font = QFont("Segoe UI", 9)
+            self.title_font = QFont("Segoe UI", 20, QFont.Bold)
+            self.subtitle_font = QFont("Segoe UI", 11)
 
     def init_icons(self):
         def create_icon(svg_data):
@@ -397,149 +397,497 @@ class MinecraftLauncher(QWidget):
             self.cancel_button.setEnabled(False)
             self.cancel_button.setText(self.lang_dict.get("cancelling", "Cancelling..."))
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # PROFILES
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _get_profiles_path(self):
+        from hru_hru_launcher.utils.paths import get_launcher_data_dir
+        return os.path.join(get_launcher_data_dir(), "profiles.json")
+
+    def _load_profiles(self):
+        path = self._get_profiles_path()
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return []
+
+    def _save_profiles(self, profiles):
+        path = self._get_profiles_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(profiles, f, ensure_ascii=False, indent=2)
+
+    def _update_profile_button_text(self, *_args):
+        """Update the profile label under the avatar."""
+        name = self.settings.get("active_profile_name", "")
+        ver = self.version_combo.currentText() if hasattr(self, "version_combo") and self.version_combo.currentText() else ""
+        ltype = self.current_version_type.capitalize()
+        if name:
+            text = f"PROFILE: {name}"
+        elif ver:
+            text = f"PROFILE: {ver} ({ltype})"
+        else:
+            text = "PROFILE: Default"
+        if hasattr(self, "profile_label"):
+            self.profile_label.setText(text)
+
+    def open_profile_manager(self):
+        """Profile manager dialog with combo-based version selection."""
+        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                                       QListWidget, QListWidgetItem, QPushButton,
+                                       QLineEdit, QComboBox, QFormLayout)
+
+        accent = self.current_accent_color
+        profiles = self._load_profiles()
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Profile Manager")
+        dlg.setMinimumSize(500, 520)
+        dlg.setStyleSheet(f"""
+            QDialog {{ background: #0e0e16; }}
+            QLabel  {{ color: #c8c8e0; background: transparent; }}
+            QLineEdit, QComboBox {{
+                background: rgba(255,255,255,0.06);
+                border: 1px solid rgba(255,255,255,0.12);
+                border-radius: 8px;
+                color: #fff;
+                padding: 8px 14px;
+                font-size: 10pt;
+            }}
+            QLineEdit:focus, QComboBox:focus {{
+                border: 1px solid {accent};
+            }}
+            QComboBox QAbstractItemView {{
+                background: #14141e;
+                color: #c8c8e0;
+                border: 1px solid rgba(255,255,255,0.10);
+                border-radius: 6px;
+                selection-background-color: rgba(30,200,120,0.25);
+            }}
+            QListWidget {{
+                background: rgba(255,255,255,0.04);
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 10px;
+                color: #c8c8e0;
+                outline: none;
+                font-size: 10pt;
+            }}
+            QListWidget::item {{
+                padding: 10px;
+                border-radius: 6px;
+            }}
+            QListWidget::item:selected {{ background: rgba(30,200,120,0.20); }}
+            QListWidget::item:hover {{ background: rgba(255,255,255,0.06); }}
+            QPushButton {{
+                background: rgba(255,255,255,0.08);
+                color: #c8c8e0;
+                border: 1px solid rgba(255,255,255,0.10);
+                border-radius: 8px;
+                padding: 8px 18px;
+                font-weight: bold;
+                font-size: 10pt;
+            }}
+            QPushButton:hover {{ background: rgba(255,255,255,0.14); }}
+        """)
+
+        main_layout = QVBoxLayout(dlg)
+        main_layout.setContentsMargins(24, 24, 24, 24)
+        main_layout.setSpacing(14)
+
+        title = QLabel("Manage Profiles")
+        title.setStyleSheet("font-size: 15pt; color: #f0f0ff; font-weight: bold;")
+        main_layout.addWidget(title)
+
+        # Existing profiles list
+        profile_list = QListWidget()
+        profile_list.setMinimumHeight(120)
+        active_name = self.settings.get("active_profile_name", "")
+        for p in profiles:
+            text = f"{p['name']}  ·  {p.get('mc_version', '?')} / {p.get('version_type', 'vanilla')}"
+            item = QListWidgetItem(text)
+            item.setData(Qt.UserRole, p)
+            if p["name"] == active_name:
+                item.setSelected(True)
+            profile_list.addItem(item)
+        main_layout.addWidget(profile_list)
+
+        # ── New profile form ──
+        sep = QLabel("── Create New Profile ──")
+        sep.setStyleSheet("color: rgba(200,200,220,0.35); font-size: 9pt; font-weight: bold;")
+        sep.setAlignment(Qt.AlignCenter)
+        main_layout.addWidget(sep)
+
+        form = QFormLayout()
+        form.setSpacing(10)
+        form.setLabelAlignment(Qt.AlignRight)
+
+        name_input = QLineEdit()
+        name_input.setPlaceholderText("e.g. Survival, Creative, Modded...")
+
+        # MC Version — combo populated from current version_combo items
+        mc_combo = QComboBox()
+        for i in range(self.version_combo.count()):
+            mc_combo.addItem(self.version_combo.itemText(i), self.version_combo.itemData(i, Qt.UserRole))
+        if mc_combo.count() > 0:
+            mc_combo.setCurrentIndex(self.version_combo.currentIndex())
+
+        type_combo = QComboBox()
+        type_combo.addItems(["vanilla", "forge", "fabric"])
+        type_combo.setCurrentText(self.current_version_type)
+
+        user_input = QLineEdit(self.user_input.text() if hasattr(self, "user_input") else "")
+        user_input.setPlaceholderText("username")
+
+        for lbl, w in [("Name:", name_input), ("Version:", mc_combo), ("Loader:", type_combo), ("Username:", user_input)]:
+            label = QLabel(lbl)
+            label.setStyleSheet("color: #8888a0; font-weight: bold; font-size: 9pt;")
+            form.addRow(label, w)
+
+        main_layout.addLayout(form)
+
+        # ── Action buttons ──
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+        create_btn = QPushButton("✦ Create")
+        create_btn.setStyleSheet(f"background: {accent}; color: #060608; border: none;")
+        delete_btn = QPushButton("✕ Delete")
+        delete_btn.setStyleSheet("background: rgba(220,50,50,0.70); color: white; border: none;")
+        load_btn = QPushButton("▶ Load Selected")
+        load_btn.setStyleSheet(f"background: rgba(100,100,255,0.70); color: white; border: none;")
+        close_btn = QPushButton("Close")
+        btn_row.addWidget(create_btn)
+        btn_row.addWidget(delete_btn)
+        btn_row.addStretch()
+        btn_row.addWidget(load_btn)
+        btn_row.addWidget(close_btn)
+        main_layout.addLayout(btn_row)
+
+        def do_create():
+            pname = name_input.text().strip()
+            if not pname:
+                return
+            new_p = {
+                "name": pname,
+                "mc_version": mc_combo.currentText() if mc_combo.count() > 0 else "1.20.1",
+                "version_type": type_combo.currentText(),
+                "username": user_input.text().strip(),
+            }
+            profiles.append(new_p)
+            self._save_profiles(profiles)
+            text = f"{new_p['name']}  ·  {new_p['mc_version']} / {new_p['version_type']}"
+            item = QListWidgetItem(text)
+            item.setData(Qt.UserRole, new_p)
+            profile_list.addItem(item)
+            name_input.clear()
+
+        def do_delete():
+            row = profile_list.currentRow()
+            if row < 0:
+                return
+            profiles.pop(row)
+            self._save_profiles(profiles)
+            profile_list.takeItem(row)
+
+        def do_load():
+            item = profile_list.currentItem()
+            if not item:
+                return
+            p = item.data(Qt.UserRole)
+            self.settings["active_profile_name"] = p["name"]
+            if p.get("username"):
+                self.user_input.setText(p["username"])
+            vtype = p.get("version_type", "vanilla")
+            idx = {"vanilla": 0, "forge": 1, "fabric": 2}.get(vtype, 0)
+            self._set_pill(idx)
+            self._update_profile_button_text()
+            dlg.accept()
+
+        create_btn.clicked.connect(do_create)
+        delete_btn.clicked.connect(do_delete)
+        load_btn.clicked.connect(do_load)
+        close_btn.clicked.connect(dlg.reject)
+        dlg.exec()
+
+
+    def _set_pill(self, idx):
+        """Helper: activate pill button by index."""
+        if hasattr(self, "_pill_buttons"):
+            for b in self._pill_buttons:
+                b.setChecked(False)
+            self._pill_buttons[idx].setChecked(True)
+            self.change_version_type(idx)
+
+
+
     def create_title_bar(self, main_layout):
         self.title_bar = QWidget()
         self.title_bar.setObjectName("titleBar")
-        self.title_bar.setFixedHeight(60)
+        self.title_bar.setFixedHeight(62)
         title_layout = QHBoxLayout(self.title_bar)
-        title_layout.setContentsMargins(20, 10, 20, 10)
+        title_layout.setContentsMargins(20, 10, 16, 10)
+        title_layout.setSpacing(10)
+
+        # Title (left)
         self.title_label = QLabel()
         self.title_label.setFont(self.title_font)
         self.title_label.setObjectName("titleLabel")
         self.glow_effect = QGraphicsDropShadowEffect(self)
-        self.glow_effect.setBlurRadius(25)
+        self.glow_effect.setBlurRadius(20)
         self.glow_effect.setOffset(0, 0)
         self.title_label.setGraphicsEffect(self.glow_effect)
         title_layout.addWidget(self.title_label)
         title_layout.addStretch()
+
+        # Window control buttons (right side)
         self.minimize_button = QPushButton("—")
         self.minimize_button.setObjectName("minimizeButton")
-        self.minimize_button.setFixedSize(30, 30)
+        self.minimize_button.setFixedSize(32, 32)
         self.minimize_button.clicked.connect(self.showMinimized)
         self.close_button = QPushButton("✕")
         self.close_button.setObjectName("closeButton")
-        self.close_button.setFixedSize(30, 30)
+        self.close_button.setFixedSize(32, 32)
         self.close_button.clicked.connect(self.close)
         title_layout.addWidget(self.minimize_button)
         title_layout.addWidget(self.close_button)
+
         main_layout.addWidget(self.title_bar)
 
     def create_main_panel(self, content_layout):
         main_panel = QWidget()
         main_panel.setObjectName("mainPanel")
-        main_panel.setFixedWidth(400)
+        main_panel.setFixedWidth(320)
         panel_layout = QVBoxLayout(main_panel)
-        panel_layout.setContentsMargins(20, 20, 20, 20)
-        panel_layout.setSpacing(15)
+        panel_layout.setContentsMargins(0, 0, 0, 0)
+        panel_layout.setSpacing(0)
 
+        assets_dir = get_assets_dir()
+
+        # ═══════════════════════════════════════════════════════
+        #  PROFILE HEADER  —  Telegram-style blurred banner
+        # ═══════════════════════════════════════════════════════
+        profile_header = QWidget()
+        profile_header.setObjectName("profileHeader")
+        profile_header.setFixedHeight(200)
+        header_layout = QVBoxLayout(profile_header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(0)
+
+        # Blurred background image (fills the header)
+        bg_path = os.path.join(assets_dir, "bg-1.jpg")
+        if os.path.exists(bg_path):
+            bg_pixmap = QPixmap(bg_path)
+            # Apply blur via scaling down then up
+            small = bg_pixmap.scaled(80, 50, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            blurred = small.scaled(320, 200, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+            bg_label = QLabel(profile_header)
+            bg_label.setPixmap(blurred)
+            bg_label.setScaledContents(True)
+            bg_label.setGeometry(0, 0, 320, 200)
+            bg_label.lower()
+            bg_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+            bg_label.setStyleSheet("background: transparent;")
+            # Dark overlay
+            overlay = QLabel(profile_header)
+            overlay.setGeometry(0, 0, 320, 200)
+            overlay.setStyleSheet("background: rgba(8, 8, 16, 0.55);")
+            overlay.setAttribute(Qt.WA_TransparentForMouseEvents)
+            overlay.lower()
+            bg_label.lower()
+            self._header_bg = bg_label
+            self._header_overlay = overlay
+            # Resize handler
+            def _resize_header(event, bl=bg_label, ol=overlay):
+                w, h = event.size().width(), event.size().height()
+                bl.setGeometry(0, 0, w, h)
+                ol.setGeometry(0, 0, w, h)
+            profile_header.resizeEvent = _resize_header
+
+        # Circular bee avatar
+        avatar_container = QVBoxLayout()
+        avatar_container.setAlignment(Qt.AlignCenter)
+
+        bee_path = os.path.join(assets_dir, "bee.png")
+        self.profile_avatar = QLabel()
+        self.profile_avatar.setFixedSize(90, 90)
+        self.profile_avatar.setAlignment(Qt.AlignCenter)
+        self.profile_avatar.setStyleSheet("""
+            background: rgba(255,255,255,0.08);
+            border: 3px solid rgba(255,255,255,0.20);
+            border-radius: 45px;
+        """)
+        if os.path.exists(bee_path):
+            bee_px = QPixmap(bee_path).scaled(
+                64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.profile_avatar.setPixmap(bee_px)
+
+        avatar_container.addStretch()
+        avatar_container.addWidget(self.profile_avatar, alignment=Qt.AlignCenter)
+        avatar_container.addSpacing(8)
+
+        # Profile label (clickable)
+        self.profile_label = QPushButton()
+        self.profile_label.setObjectName("profileLabel")
+        self.profile_label.setFixedHeight(32)
+        self.profile_label.setCursor(Qt.PointingHandCursor)
+        self.profile_label.clicked.connect(self.open_profile_manager)
+        self._update_profile_button_text()
+        avatar_container.addWidget(self.profile_label, alignment=Qt.AlignCenter)
+        avatar_container.addStretch()
+
+        header_layout.addLayout(avatar_container)
+        panel_layout.addWidget(profile_header)
+
+        # ═══════════════════════════════════════════════════════
+        #  CONTROLS AREA  —  below profile header
+        # ═══════════════════════════════════════════════════════
+        controls = QWidget()
+        controls.setObjectName("panelControls")
+        controls_layout = QVBoxLayout(controls)
+        controls_layout.setContentsMargins(18, 14, 18, 18)
+        controls_layout.setSpacing(0)
+
+        # ── Version type (pill buttons) ───────────────
         self.version_type_label = QLabel()
         self.version_type_label.setFont(self.subtitle_font)
         self.version_type_label.setObjectName("sectionLabel")
+        controls_layout.addWidget(self.version_type_label)
+        controls_layout.addSpacing(8)
+
         self.version_type_group = QButtonGroup(self)
-        self.vanilla_radio = QRadioButton()
-        self.forge_radio = QRadioButton()
-        self.fabric_radio = QRadioButton()
-        version_type_map = {"vanilla": 0, "forge": 1, "fabric": 2}
-        self.version_type_group.addButton(self.vanilla_radio, version_type_map["vanilla"])
-        self.version_type_group.addButton(self.forge_radio, version_type_map["forge"])
-        self.version_type_group.addButton(self.fabric_radio, version_type_map["fabric"])
-        self.version_type_group.button(version_type_map.get(self.current_version_type, 0)).setChecked(True)
-        self.version_type_group.idClicked.connect(self.change_version_type)
-        version_type_layout = QHBoxLayout()
-        version_type_layout.addWidget(self.vanilla_radio)
-        version_type_layout.addWidget(self.forge_radio)
-        version_type_layout.addWidget(self.fabric_radio)
-        version_type_layout.addStretch()
+        version_pill_layout = QHBoxLayout()
+        version_pill_layout.setSpacing(10)
+
+        self.vanilla_radio = QPushButton()
+        self.vanilla_radio.setCheckable(True)
+        self.vanilla_radio.setObjectName("pillButton")
+        self.forge_radio = QPushButton()
+        self.forge_radio.setCheckable(True)
+        self.forge_radio.setObjectName("pillButton")
+        self.fabric_radio = QPushButton()
+        self.fabric_radio.setCheckable(True)
+        self.fabric_radio.setObjectName("pillButton")
+
+        # Set loader icons on pills
+        _loader_icons = {
+            "vanilla": os.path.join(assets_dir, "vanila.png"),
+            "forge":   os.path.join(assets_dir, "forge-icon.png"),
+            "fabric":  os.path.join(assets_dir, "fabric.png"),
+        }
+        for btn, key in [(self.vanilla_radio, "vanilla"), (self.forge_radio, "forge"), (self.fabric_radio, "fabric")]:
+            icon_path = _loader_icons.get(key, "")
+            if os.path.exists(icon_path):
+                btn.setIcon(QIcon(icon_path))
+                btn.setIconSize(QSize(18, 18))
+
+        self._pill_buttons = [self.vanilla_radio, self.forge_radio, self.fabric_radio]
+        self._pill_type_map = {0: "vanilla", 1: "forge", 2: "fabric"}
+        type_idx = {"vanilla": 0, "forge": 1, "fabric": 2}.get(self.current_version_type, 0)
+        self._pill_buttons[type_idx].setChecked(True)
+
+        for btn in self._pill_buttons:
+            version_pill_layout.addWidget(btn)
+        version_pill_layout.addStretch()
+
+        def _pill_clicked(btn, idx):
+            for b in self._pill_buttons:
+                b.setChecked(False)
+            btn.setChecked(True)
+            self.change_version_type(idx)
+
+        for i, btn in enumerate(self._pill_buttons):
+            btn.clicked.connect(partial(_pill_clicked, btn, i))
+
+        controls_layout.addLayout(version_pill_layout)
+        controls_layout.addSpacing(14)
+
+        # ── Version combo ─────────────────────────────
         self.version_label = QLabel()
         self.version_label.setFont(self.subtitle_font)
         self.version_label.setObjectName("sectionLabel")
-        version_layout = QHBoxLayout()
-        version_icon_label = QLabel()
-        version_icon_label.setPixmap(self.version_icon.pixmap(QSize(24, 24)))
-        version_layout.addWidget(version_icon_label)
-        version_layout.addWidget(self.version_label)
-        version_layout.addStretch()
+        controls_layout.addWidget(self.version_label)
+        controls_layout.addSpacing(6)
+
         self.version_combo = QComboBox()
         self.version_combo.setFont(self.minecraft_font)
         self.version_combo.setFixedHeight(40)
         self.version_combo.setIconSize(QSize(16, 16))
+        self.version_combo.currentIndexChanged.connect(self._update_profile_button_text)
+        controls_layout.addWidget(self.version_combo)
+        controls_layout.addSpacing(14)
+
+        # ── Username ──────────────────────────────────
         self.username_label = QLabel()
         self.username_label.setFont(self.subtitle_font)
         self.username_label.setObjectName("sectionLabel")
-        username_layout = QHBoxLayout()
-        username_icon_label = QLabel()
-        username_icon_label.setPixmap(self.username_icon.pixmap(QSize(24, 24)))
-        username_layout.addWidget(username_icon_label)
-        username_layout.addWidget(self.username_label)
-        username_layout.addStretch()
+        controls_layout.addWidget(self.username_label)
+        controls_layout.addSpacing(6)
+
         self.user_input = QLineEdit()
         self.user_input.setFont(self.minecraft_font)
         self.user_input.setFixedHeight(40)
         self.user_input.setText(self.settings.get("last_username", ""))
+        controls_layout.addWidget(self.user_input)
+
+        controls_layout.addStretch()
 
         self.error_label = QLabel("")
         self.error_label.setFont(self.minecraft_font)
         self.error_label.setObjectName("errorLabel")
         self.error_label.setVisible(False)
         self.error_label.setWordWrap(True)
+        controls_layout.addWidget(self.error_label)
+        controls_layout.addSpacing(10)
 
-        panel_layout.addWidget(self.version_type_label)
-        panel_layout.addLayout(version_type_layout)
-        panel_layout.addSpacing(20)
-        panel_layout.addLayout(version_layout)
-        panel_layout.addWidget(self.version_combo)
-        panel_layout.addSpacing(20)
-        panel_layout.addLayout(username_layout)
-        panel_layout.addWidget(self.user_input)
-        panel_layout.addStretch()
-        panel_layout.addWidget(self.error_label)
-        
+        # ── Launch stack ──────────────────────────────
         self.launch_control_stack = QStackedWidget()
-        self.launch_control_stack.setFixedHeight(50)
+        self.launch_control_stack.setFixedHeight(56)
 
         self.launch_button = AnimatedButton("")
         self.launch_button.setObjectName("launchButton")
         self.launch_button.setFont(self.subtitle_font)
         self.launch_button.setIcon(self.play_icon)
-        self.launch_button.setIconSize(QSize(24, 24))
-        self.launch_button.setFixedHeight(50)
+        self.launch_button.setIconSize(QSize(22, 22))
+        self.launch_button.setFixedHeight(56)
         self.launch_button.clicked.connect(self.start_minecraft)
         self.launch_control_stack.addWidget(self.launch_button)
 
         progress_container = QWidget()
         progress_layout = QHBoxLayout(progress_container)
         progress_layout.setContentsMargins(0, 0, 0, 0)
-        progress_layout.setSpacing(5)
+        progress_layout.setSpacing(6)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setFont(self.minecraft_font)
         self.progress_bar.setTextVisible(True)
         self.progress_bar.setAlignment(Qt.AlignCenter)
-        self.progress_bar.setFixedHeight(30)
-        
-        self.progress_bar.setStyleSheet(f"QProgressBar {{ text-align: center; color: #f8f8f2; border-radius: 5px; }} QProgressBar::chunk {{ background-color: {self.current_accent_color}; border-radius: 5px; }}")
+        self.progress_bar.setFixedHeight(40)
 
         self.cancel_button = AnimatedButton("")
         self.cancel_button.setObjectName("cancelButton")
         self.cancel_button.setFont(self.minecraft_font)
         self.cancel_button.setIcon(self.cancel_icon)
-        self.cancel_button.setIconSize(QSize(20, 20))
-        self.cancel_button.setFixedSize(120, 50)
+        self.cancel_button.setIconSize(QSize(18, 18))
+        self.cancel_button.setFixedSize(110, 56)
         self.cancel_button.clicked.connect(self.cancel_launch)
 
         progress_layout.addWidget(self.progress_bar, 1)
         progress_layout.addWidget(self.cancel_button)
         self.launch_control_stack.addWidget(progress_container)
 
-        panel_layout.addWidget(self.launch_control_stack)
+        controls_layout.addWidget(self.launch_control_stack)
+        panel_layout.addWidget(controls, 1)
         content_layout.addWidget(main_panel)
 
+
     def update_progress(self, current, max_val, status):
+        # Truncate long status text for the progress bar display
+        display_status = status if len(status) < 40 else status[:37] + "..."
         if max_val > 0:
-            self.progress_bar.setFormat(f"{status} - %p%")
+            self.progress_bar.setFormat(f"{display_status} — %p%")
         else:
-            self.progress_bar.setFormat(status)
-        
+            self.progress_bar.setFormat(display_status)
         self.progress_bar.setMaximum(max_val)
         self.progress_bar.setValue(current)
 
@@ -597,7 +945,7 @@ class MinecraftLauncher(QWidget):
         self.tab_widget = QTabWidget()
         self.tab_widget.setFont(self.minecraft_font)
         self.tab_widget.setObjectName("tabWidget")
-        
+
         self.create_news_tab()
         self.create_mods_tab()
         self.create_versions_tab()
@@ -611,17 +959,33 @@ class MinecraftLauncher(QWidget):
     def create_settings_tab(self):
         self.settings_tab_widget = QWidget()
         settings_layout = QVBoxLayout(self.settings_tab_widget)
-        settings_layout.setContentsMargins(20, 20, 20, 20)
-        settings_layout.setSpacing(15)
+        settings_layout.setContentsMargins(24, 24, 24, 24)
+        settings_layout.setSpacing(14)
 
+        # ── Language with flags ─────────────────────────
         self.lang_label = QLabel()
         self.lang_label.setFont(self.subtitle_font)
         self.language_combo = QComboBox()
-        self.language_combo.addItems(["English", "Русский", "Українська"])
+        self.language_combo.setIconSize(QSize(22, 14))
+
+        assets_dir = get_assets_dir()
+        flag_map = [
+            ("English",     os.path.join(assets_dir, "uk.webp")),
+            ("Русский",     os.path.join(assets_dir, "russia.svg")),
+            ("Українська",  os.path.join(assets_dir, "ukraine.svg")),
+        ]
+        for lang_name, flag_path in flag_map:
+            if os.path.exists(flag_path):
+                px = QPixmap(flag_path).scaled(22, 14, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                self.language_combo.addItem(QIcon(px), lang_name)
+            else:
+                self.language_combo.addItem(lang_name)
+
         lang_map = {"en": 0, "ru": 1, "ua": 2}
         self.language_combo.setCurrentIndex(lang_map.get(self.current_language, 0))
         self.language_combo.currentTextChanged.connect(self.change_language)
-        
+
+        # ── Accent color ────────────────────────────────
         self.accent_color_label = QLabel()
         self.accent_color_label.setFont(self.subtitle_font)
         self.color_picker_button = QPushButton()
@@ -634,11 +998,11 @@ class MinecraftLauncher(QWidget):
         color_picker_layout.addWidget(self.color_picker_button)
         color_picker_layout.addWidget(self.color_preview)
         color_picker_layout.addStretch()
-        
+
+        # ── Memory ──────────────────────────────────────
         self.memory_label = QLabel()
         self.memory_label.setFont(self.subtitle_font)
         self.memory_slider = QSlider(Qt.Horizontal)
-
         try:
             self.total_system_memory = int(psutil.virtual_memory().total / (1024**3))
             self.memory_slider.setRange(1, self.total_system_memory)
@@ -651,7 +1015,6 @@ class MinecraftLauncher(QWidget):
         if current_mem > self.total_system_memory:
             current_mem = self.total_system_memory
         self.memory_slider.setValue(current_mem)
-
         self.memory_slider.setTickPosition(QSlider.TicksBelow)
         self.memory_slider.setTickInterval(1)
         self.memory_value_label = QLabel(f"{self.memory_slider.value()} GB")
@@ -660,6 +1023,7 @@ class MinecraftLauncher(QWidget):
         self.memory_feedback_label.setAlignment(Qt.AlignCenter)
         self.update_memory_feedback(self.memory_slider.value())
 
+        # ── Resolution ──────────────────────────────────
         self.resolution_label = QLabel()
         self.resolution_label.setFont(self.subtitle_font)
         resolution_layout = QHBoxLayout()
@@ -670,39 +1034,42 @@ class MinecraftLauncher(QWidget):
         resolution_layout.addWidget(self.resolution_width_input)
         resolution_layout.addWidget(QLabel("x"))
         resolution_layout.addWidget(self.resolution_height_input)
-        
+
+        # ── Checkboxes ──────────────────────────────────
         self.fullscreen_checkbox = QCheckBox()
         self.fullscreen_checkbox.setChecked(self.settings.get("fullscreen", False))
         self.close_launcher_checkbox = QCheckBox()
         self.close_launcher_checkbox.setChecked(self.settings.get("close_launcher", True))
-        
+
+        # ── Advanced ────────────────────────────────────
         self.advanced_settings_button = QPushButton()
         self.advanced_settings_button.setCheckable(False)
         self.advanced_settings_button.clicked.connect(self.open_advanced_settings)
-        
+
+        # ── Layout ──────────────────────────────────────
         settings_layout.addWidget(self.lang_label)
         settings_layout.addWidget(self.language_combo)
-        settings_layout.addSpacing(10)
+        settings_layout.addSpacing(8)
         settings_layout.addWidget(self.accent_color_label)
         settings_layout.addLayout(color_picker_layout)
-        settings_layout.addSpacing(10)
+        settings_layout.addSpacing(8)
         settings_layout.addWidget(self.memory_label)
         memory_layout = QHBoxLayout()
         memory_layout.addWidget(self.memory_slider)
         memory_layout.addWidget(self.memory_value_label)
         settings_layout.addLayout(memory_layout)
         settings_layout.addWidget(self.memory_feedback_label)
-        settings_layout.addSpacing(10)
+        settings_layout.addSpacing(8)
         settings_layout.addWidget(self.resolution_label)
         settings_layout.addLayout(resolution_layout)
-        settings_layout.addSpacing(10)
+        settings_layout.addSpacing(8)
         settings_layout.addWidget(self.fullscreen_checkbox)
         settings_layout.addWidget(self.close_launcher_checkbox)
-        
         settings_layout.addStretch()
         settings_layout.addWidget(self.advanced_settings_button)
-        
+
         self.tab_widget.addTab(self.settings_tab_widget, self.settings_icon, "")
+        # Settings tab will have no text, just settings icon at far right
 
     def create_placeholder_tab(self, icon, tab_name):
         widget = QWidget()
@@ -719,6 +1086,9 @@ class MinecraftLauncher(QWidget):
 
     def create_news_tab(self):
         self.create_placeholder_tab(self.news_icon, "news")
+        # Set text for the tab
+        idx = self.tab_widget.count() - 1
+        self.tab_widget.setTabText(idx, "News")
 
     def create_mods_tab(self):
         self.mods_tab_widget = QWidget()
@@ -756,15 +1126,20 @@ class MinecraftLauncher(QWidget):
         self.mod_results_list.setSpacing(5)
 
         pagination_layout = QHBoxLayout()
-        self.prev_page_button = QPushButton("<")
-        self.prev_page_button.setFixedSize(35, 35)
+        self.prev_page_button = QPushButton("‹")
+        self.prev_page_button.setObjectName("paginationButton")
+        self.prev_page_button.setFixedSize(32, 32)
+        self.prev_page_button.setCursor(Qt.PointingHandCursor)
         self.prev_page_button.clicked.connect(self.prev_mod_page)
-        
+
         self.page_label = QLabel("Page 1")
         self.page_label.setAlignment(Qt.AlignCenter)
-        
-        self.next_page_button = QPushButton(">")
-        self.next_page_button.setFixedSize(35, 35)
+        self.page_label.setStyleSheet("color: rgba(255,255,255,0.50); font-size: 9pt; font-weight: bold;")
+
+        self.next_page_button = QPushButton("›")
+        self.next_page_button.setObjectName("paginationButton")
+        self.next_page_button.setFixedSize(32, 32)
+        self.next_page_button.setCursor(Qt.PointingHandCursor)
         self.next_page_button.clicked.connect(self.next_mod_page)
 
         pagination_layout.addStretch()
@@ -822,10 +1197,10 @@ class MinecraftLauncher(QWidget):
         installed_layout.addWidget(self.installed_mods_list, 1)
         installed_layout.addLayout(installed_bottom_bar)
 
-        self.mods_sub_tabs.addTab(search_widget, "")
-        self.mods_sub_tabs.addTab(installed_widget, "")
+        self.mods_sub_tabs.addTab(search_widget, "Search")
+        self.mods_sub_tabs.addTab(installed_widget, "Installed")
 
-        self.tab_widget.addTab(self.mods_tab_widget, self.mods_icon, "")
+        self.tab_widget.addTab(self.mods_tab_widget, self.mods_icon, "Mods")
         self.mods_sub_tabs.currentChanged.connect(self.on_mods_sub_tab_changed)
     
     def create_versions_tab(self):
@@ -865,7 +1240,7 @@ class MinecraftLauncher(QWidget):
         versions_layout.addLayout(size_info_layout)
         versions_layout.addWidget(self.installed_versions_list, 1)
 
-        self.tab_widget.addTab(self.versions_tab_widget, self.manage_versions_icon, "")
+        self.tab_widget.addTab(self.versions_tab_widget, self.manage_versions_icon, "Versions")
 
     def create_modpacks_tab(self):
         widget = QWidget()
@@ -889,14 +1264,19 @@ class MinecraftLauncher(QWidget):
         layout.addWidget(self.modpacks_tab_label)
         layout.addStretch()
         layout.addLayout(bottom_bar_layout)
-        self.tab_widget.addTab(widget, self.modpacks_icon, "")
+        self.tab_widget.addTab(widget, self.modpacks_icon, "Modpacks")
 
     def create_vpn_tab(self):
         self.create_placeholder_tab(self.vpn_icon, "vpn")
+        idx = self.tab_widget.count() - 1
+        self.tab_widget.setTabText(idx, "VPN")
 
     def create_console_tab(self):
         console_widget = QWidget()
+        console_widget.setObjectName("consoleTab")
         console_layout = QVBoxLayout(console_widget)
+        console_layout.setContentsMargins(10, 10, 10, 10)
+        console_layout.setSpacing(8)
         self.clear_console_button = AnimatedButton("")
         self.clear_console_button.setFont(self.minecraft_font)
         self.clear_console_button.setFixedHeight(35)
@@ -907,7 +1287,7 @@ class MinecraftLauncher(QWidget):
         self.console_output.setReadOnly(True)
         console_layout.addWidget(self.clear_console_button)
         console_layout.addWidget(self.console_output)
-        self.tab_widget.addTab(console_widget, self.console_icon, "")
+        self.tab_widget.addTab(console_widget, self.console_icon, "CONSOLE")
 
     def prev_mod_page(self):
         if self.mod_current_page > 1:
@@ -953,6 +1333,15 @@ class MinecraftLauncher(QWidget):
         item = QListWidgetItem(self.lang_dict.get("searching", "Searching..."))
         item.setTextAlignment(Qt.AlignCenter)
         self.mod_results_list.addItem(item)
+
+        # Disconnect previous worker to prevent signal accumulation
+        if self.mod_search_worker is not None:
+            try:
+                self.mod_search_worker.finished.disconnect(self.on_mod_search_finished)
+            except RuntimeError:
+                pass
+            self.mod_search_worker = None
+
         self.mod_search_worker = ModSearchWorker(query, game_version, loader, sort_option, self.lang_dict, offset, self)
         self.mod_search_worker.finished.connect(self.on_mod_search_finished)
         self.mod_search_worker.start()
@@ -976,7 +1365,7 @@ class MinecraftLauncher(QWidget):
                 project_id = mod_data.get("project_id")
                 is_installed = project_id in installed_mods
                 item = QListWidgetItem()
-                item.setSizeHint(QSize(0, 84))
+                item.setSizeHint(QSize(0, 110))
                 card_widget = ModListItemWidget(mod_data, self.lang_dict, is_installed, game_version)
                 card_widget.install_requested.connect(self.start_mod_download)
                 card_widget.page_requested.connect(self.open_mod_page)
@@ -1010,7 +1399,7 @@ class MinecraftLauncher(QWidget):
         
         for mod_info in sorted(mods_list, key=lambda x: x['name'].lower()):
             item = QListWidgetItem()
-            item.setSizeHint(QSize(0, 90))
+            item.setSizeHint(QSize(0, 84))
             widget = InstalledModListItemWidget(
                 mod_info, self.lang_dict, main_font=self.minecraft_font, bold_font=self.subtitle_font
                 )
@@ -1265,9 +1654,10 @@ class MinecraftLauncher(QWidget):
         self.next_page_button.setToolTip(lang.get("next_page", "Next"))
         self.page_label.setText(f"{lang.get('page', 'Page')} {self.mod_current_page}")
         self.version_type_label.setText(lang["version_type"])
-        self.vanilla_radio.setText(lang["vanilla"])
-        self.forge_radio.setText(lang["forge"])
-        self.fabric_radio.setText(lang["fabric"])
+        if hasattr(self, 'vanilla_radio') and isinstance(self.vanilla_radio, QPushButton):
+            self.vanilla_radio.setText(lang["vanilla"])
+            self.forge_radio.setText(lang["forge"])
+            self.fabric_radio.setText(lang["fabric"])
         self.update_memory_feedback(self.memory_slider.value())
         if hasattr(self, 'open_mods_folder_button_search'):
             open_mods_folder_button_search.setToolTip(lang["open_mods_folder"])
@@ -1294,40 +1684,82 @@ class MinecraftLauncher(QWidget):
                 if wip_label: wip_label.setText(lang["wip_notice"])
             
     def apply_theme(self):
-        base_style = themes.get_dark_theme(accent_color=self.current_accent_color)
-        custom_style = """
-            QPushButton { 
-                outline: none; 
-            }
-            QTabBar::tab:nth-last-child(1), QTabBar::tab:nth-last-child(2) {
-                width: 60px;
-                padding: 10px 15px;
-            }
-            #totalSizeLabel {
-                color: #bd93f9;
+        accent = self.current_accent_color
+        base_style = themes.get_dark_theme(accent_color=accent)
+        custom_style = f"""
+            QPushButton {{ outline: none; }}
+
+            /* ── Left panel ── */
+            #mainPanel {{
+                background: #10101a;
+                border-right: 1px solid rgba(255,255,255,0.07);
+            }}
+
+            /* ── Profile header (blurred bg area) ── */
+            #profileHeader {{
+                background: transparent;
+                border-bottom: 1px solid rgba(255,255,255,0.06);
+            }}
+
+            /* ── Profile label button ── */
+            #profileLabel {{
+                background: rgba(255,255,255,0.10);
+                color: #e8e8f8;
+                border: 1px solid rgba(255,255,255,0.15);
+                border-radius: 14px;
+                font-weight: bold;
                 font-size: 9pt;
-            }
-            #cancelButton {
-                background-color: #ff5555;
-            }
-            #cancelButton:hover {
-                background-color: #ff7070;
-            }
-            #deleteSelectedButton {
-                background-color: #ff5555;
-                padding: 5px 10px;
-                border-radius: 5px;
-            }
-            #deleteSelectedButton:hover {
-                background-color: #ff7070;
-            }
-            #deleteSelectedButton:disabled {
-                background-color: #555;
-                color: #888;
-            }
+                padding: 4px 18px;
+                min-width: 200px;
+            }}
+            #profileLabel:hover {{
+                background: rgba(255,255,255,0.18);
+                border-color: {accent};
+                color: #fff;
+            }}
+
+            /* ── Controls area below header ── */
+            #panelControls {{
+                background: qlineargradient(
+                    x1:0, y1:0, x2:0, y2:1,
+                    stop:0 #14141e,
+                    stop:1 #0c0c14
+                );
+            }}
+
+            /* ── Pill version type buttons ── */
+            #pillButton {{
+                background: rgba(255,255,255,0.06);
+                color: #888899;
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 18px;
+                padding: 6px 14px;
+                font-weight: bold;
+                font-size: 9pt;
+            }}
+            #pillButton:hover {{
+                background: rgba(255,255,255,0.10);
+                color: #ccccdd;
+            }}
+            #pillButton:checked {{
+                background: {accent};
+                color: #0a0a0f;
+                border: none;
+            }}
         """
         self.setStyleSheet(base_style + custom_style)
         self.update_title_glow()
+        # Rename console tab to show CONSOLE label
+        for i in range(self.tab_widget.count()):
+            widget = self.tab_widget.widget(i)
+            if widget and widget.objectName() == "consoleTab":
+                self.tab_widget.setTabText(i, "CONSOLE")
+        # Update pill button texts to reflect current state
+        if hasattr(self, '_pill_buttons'):
+            for btn in self._pill_buttons:
+                btn.update()
+        # Update profile button text
+        self._update_profile_button_text()
 
     def populate_versions(self, version_type="vanilla"):
         if self.version_loader and self.version_loader.isRunning():
@@ -1376,11 +1808,15 @@ class MinecraftLauncher(QWidget):
             item.setData(version_id, Qt.UserRole)
             is_installed = False
             if self.current_version_type == 'forge':
-                mc_ver, forge_ver_build = version_id.split('-', 1)
-                for installed_id in installed_ids:
-                    if 'forge' in installed_id and installed_id.startswith(mc_ver) and installed_id.endswith(forge_ver_build):
-                        is_installed = True
-                        break
+                parts = version_id.split('-', 1)
+                if len(parts) == 2:
+                    mc_ver, forge_ver_build = parts
+                    for installed_id in installed_ids:
+                        if 'forge' in installed_id and installed_id.startswith(mc_ver) and installed_id.endswith(forge_ver_build):
+                            is_installed = True
+                            break
+                else:
+                    is_installed = version_id in installed_ids
             elif self.current_version_type == 'fabric':
                 for installed_id in installed_ids:
                     if 'fabric-loader' in installed_id and version_id in installed_id:
@@ -1605,7 +2041,7 @@ class MinecraftLauncher(QWidget):
                 version_types = sorted(list(set(helpers.get_version_type(vid) for vid in id_list)))
                 
                 item = QListWidgetItem()
-                item.setSizeHint(QSize(0, 85))
+                item.setSizeHint(QSize(0, 88))
                 widget = VersionListItemWidget(base_version, version_types, self.version_management_icons, self.lang_dict)
 
                 widget.delete_requested.connect(partial(self.handle_version_action, "delete", base_version))

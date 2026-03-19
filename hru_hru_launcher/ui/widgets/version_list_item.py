@@ -1,7 +1,34 @@
+# hru_hru_launcher/ui/widgets/version_list_item.py
+
 import math
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QCheckBox
 from PySide6.QtGui import QIcon
+
+
+def _loader_badge_colors(loader_name: str):
+    """Return (bg_rgba, text_color) for a given loader type."""
+    l = loader_name.lower()
+    if l == "fabric":
+        return "rgba(100,200,120,0.20)", "#7ddca0"
+    if l == "forge":
+        return "rgba(200,140,60,0.20)", "#e8a060"
+    return "rgba(100,130,200,0.20)", "#90aae0"
+
+
+class LoaderBadge(QLabel):
+    def __init__(self, loader_name: str, parent=None):
+        super().__init__(loader_name, parent)
+        bg, fg = _loader_badge_colors(loader_name)
+        self.setStyleSheet(f"""
+            background: {bg};
+            color: {fg};
+            font-size: 8pt;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 8px;
+        """)
+
 
 class VersionListItemWidget(QWidget):
     delete_requested = Signal(str)
@@ -16,7 +43,6 @@ class VersionListItemWidget(QWidget):
         self.icons = icons
         self.lang_dict = lang_dict
         self.init_ui()
-        self.apply_styles()
 
     def get_main_icon(self):
         lower_types = [v.lower() for v in self.version_types]
@@ -28,72 +54,150 @@ class VersionListItemWidget(QWidget):
 
     def init_ui(self):
         self.setObjectName("versionCard")
-        self.setMinimumHeight(80)
-        
-        main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(15, 10, 15, 10)
+        self.setMinimumHeight(78)
+        self.setAttribute(Qt.WA_StyledBackground, True)
 
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(8, 5, 8, 5)
+
+        card = QWidget()
+        card.setObjectName("versionCardInner")
+        card.setAttribute(Qt.WA_StyledBackground, True)
+        card_layout = QHBoxLayout(card)
+        card_layout.setContentsMargins(14, 10, 14, 10)
+        card_layout.setSpacing(12)
+
+        # Checkbox
         self.checkbox = QCheckBox()
         self.checkbox.setFixedSize(20, 20)
         self.checkbox.clicked.connect(self.on_selection_changed)
-        main_layout.addWidget(self.checkbox)
-        main_layout.addSpacing(10)
+        card_layout.addWidget(self.checkbox)
 
+        # Icon
         icon_label = QLabel()
-        icon_label.setPixmap(self.get_main_icon().pixmap(QSize(36, 36)))
-        icon_label.setFixedSize(48, 48)
+        icon_label.setPixmap(self.get_main_icon().pixmap(QSize(32, 32)))
+        icon_label.setFixedSize(40, 40)
         icon_label.setAlignment(Qt.AlignCenter)
+        card_layout.addWidget(icon_label)
 
-        info_layout = QVBoxLayout()
-        info_layout.setSpacing(2)
-        
+        # Info
+        info = QVBoxLayout()
+        info.setSpacing(4)
+
         self.id_label = QLabel(self.base_version)
         self.id_label.setObjectName("versionIdLabel")
-        
-        details_layout = QHBoxLayout()
-        types_text = ", ".join(self.version_types)
-        self.type_label = QLabel(self.lang_dict.get("version_type_label", "Type: {type}").format(type=types_text))
-        self.type_label.setObjectName("versionTypeLabel")
+
+        badges_row = QHBoxLayout()
+        badges_row.setContentsMargins(0, 0, 0, 0)
+        badges_row.setSpacing(6)
+        for vtype in self.version_types:
+            badges_row.addWidget(LoaderBadge(vtype))
 
         self.size_label = QLabel(self.lang_dict.get("calculating_size_short", "Size: ..."))
         self.size_label.setObjectName("versionSizeLabel")
+        badges_row.addStretch()
+        badges_row.addWidget(self.size_label)
 
-        details_layout.addWidget(self.type_label)
-        details_layout.addStretch()
-        details_layout.addWidget(self.size_label)
+        info.addWidget(self.id_label)
+        info.addLayout(badges_row)
 
-        info_layout.addWidget(self.id_label)
-        info_layout.addLayout(details_layout)
-        info_layout.addStretch()
+        card_layout.addLayout(info, 1)
 
-        buttons_layout = QHBoxLayout()
-        buttons_layout.setSpacing(8)
-        self.open_folder_button = self.create_button(self.lang_dict.get("open_folder", "Folder"), self.icons["folder"], self.open_folder)
-        self.repair_button = self.create_button(self.lang_dict.get("repair", "Repair"), self.icons["repair"], self.repair_version)
-        self.delete_button = self.create_button(self.lang_dict.get("delete", "Delete"), self.icons["delete"], self.delete_version)
-        self.delete_button.setObjectName("deleteButton")
+        # Buttons
+        btns = QHBoxLayout()
+        btns.setSpacing(6)
 
-        buttons_layout.addStretch()
-        buttons_layout.addWidget(self.open_folder_button)
-        buttons_layout.addWidget(self.repair_button)
-        buttons_layout.addWidget(self.delete_button)
+        self.open_folder_button = self._make_btn(
+            self.lang_dict.get("open_folder", "Folder"), self.icons["folder"], self.open_folder)
+        self.repair_button = self._make_btn(
+            self.lang_dict.get("repair", "Repair"), self.icons["repair"], self.repair_version)
+        self.delete_button = self._make_btn(
+            self.lang_dict.get("delete", "Delete"), self.icons["delete"], self.delete_version,
+            is_danger=True)
 
-        main_layout.addWidget(icon_label)
-        main_layout.addSpacing(15)
-        main_layout.addLayout(info_layout, 1)
-        main_layout.addLayout(buttons_layout)
+        btns.addWidget(self.open_folder_button)
+        btns.addWidget(self.repair_button)
+        btns.addWidget(self.delete_button)
 
-    def create_button(self, text, icon, on_click):
-        button = QPushButton(text)
+        card_layout.addLayout(btns)
+        outer.addWidget(card)
+
+        self.setStyleSheet("""
+            #versionCardInner {
+                background: rgba(255,255,255,0.04);
+                border-radius: 13px;
+                border: 1px solid rgba(255,255,255,0.07);
+            }
+            #versionCardInner:hover {
+                background: rgba(255,255,255,0.07);
+                border: 1px solid rgba(255,255,255,0.12);
+            }
+            #versionIdLabel {
+                font-size: 14pt;
+                font-weight: bold;
+                color: #f0f0ff;
+            }
+            #versionSizeLabel {
+                font-size: 8pt;
+                color: #c084fc;
+            }
+            QCheckBox {
+                spacing: 0px;
+                background: transparent;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+                border-radius: 5px;
+                border: 2px solid rgba(255,255,255,0.18);
+                background: rgba(255,255,255,0.05);
+            }
+            QCheckBox::indicator:checked {
+                background: #1DB954;
+                border-color: #1DB954;
+            }
+            .actionBtn {
+                background: rgba(255,255,255,0.07);
+                color: #aaaacc;
+                border: 1px solid rgba(255,255,255,0.10);
+                padding: 5px 10px;
+                border-radius: 8px;
+                font-size: 9pt;
+                font-weight: bold;
+            }
+            .actionBtn:hover {
+                background: rgba(255,255,255,0.12);
+                color: #f0f0ff;
+            }
+            #deleteBtn {
+                background: rgba(239,68,68,0.70);
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                border-radius: 8px;
+                font-size: 9pt;
+                font-weight: bold;
+            }
+            #deleteBtn:hover {
+                background: rgba(248,79,57,0.95);
+            }
+        """)
+
+    def _make_btn(self, text, icon, callback, is_danger=False):
+        btn = QPushButton(text)
         if icon:
-            button.setIcon(icon)
-        button.setIconSize(QSize(16, 16))
-        button.clicked.connect(on_click)
-        return button
+            btn.setIcon(icon)
+            btn.setIconSize(QSize(14, 14))
+        btn.clicked.connect(callback)
+        if is_danger:
+            btn.setObjectName("deleteBtn")
+        else:
+            btn.setProperty("class", "actionBtn")
+        return btn
 
     def delete_version(self):
         self.delete_requested.emit(self.base_version)
-    
+
     def repair_version(self):
         self.repair_requested.emit(self.base_version)
 
@@ -108,64 +212,19 @@ class VersionListItemWidget(QWidget):
 
     @staticmethod
     def format_size(size_bytes):
-        if size_bytes <= 0: return "0 B"
-        size_name = ("B", "KB", "MB", "GB", "TB")
+        if size_bytes <= 0:
+            return "0 B"
+        size_name = ("B", "KB", "MB", "GB")
         try:
             i = int(math.floor(math.log(size_bytes, 1024)))
+            i = min(i, len(size_name) - 1)
             p = math.pow(1024, i)
-            s = round(size_bytes / p, 2)
+            s = round(size_bytes / p, 1)
             return f"{s} {size_name[i]}"
         except (ValueError, IndexError):
             return "0 B"
 
     def update_size(self, size_bytes):
-        size_str = self.format_size(size_bytes)
-        self.size_label.setText(self.lang_dict.get("version_size_label", "Size: {size}").format(size=size_str))
-        
-    def apply_styles(self):
-        self.setStyleSheet("""
-            #versionCard {
-                background-color: #3a3d4c;
-                border-radius: 8px;
-            }
-            #versionIdLabel {
-                font-size: 14pt;
-                font-weight: bold;
-                color: #f8f8f2;
-            }
-            #versionTypeLabel {
-                font-size: 9pt;
-                color: #bd93f9;
-            }
-            #versionSizeLabel {
-                font-size: 9pt;
-                color: #f1fa8c;
-            }
-            QCheckBox {
-                spacing: 0px;
-            }
-            QCheckBox::indicator {
-                width: 18px;
-                height: 18px;
-            }
-            #versionCard QPushButton {
-                background-color: #6272a4;
-                color: #f8f8f2;
-                border: none;
-                padding: 5px 10px;
-                border-radius: 5px;
-                outline: none;
-            }
-            #versionCard QPushButton:hover {
-                background-color: #7082b6;
-            }
-            #versionCard QPushButton:pressed {
-                background-color: #44475a;
-            }
-            #versionCard #deleteButton {
-                background-color: #ff5555;
-            }
-            #versionCard #deleteButton:hover {
-                background-color: #ff6e6e;
-            }
-        """)
+        txt = self.lang_dict.get("version_size_label", "Size: {size}").format(
+            size=self.format_size(size_bytes))
+        self.size_label.setText(txt)

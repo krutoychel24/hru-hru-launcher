@@ -122,10 +122,11 @@ class MinecraftWorker(QThread):
             self._versions_before_install = set(installed_version_ids)
             
             if base_mc_version not in installed_version_ids:
-                self.log_and_update_status(f"Base version {base_mc_version} not found. Installing...")
+                self.log_and_update_status(f"Installing Minecraft {base_mc_version}...")
                 minecraft_launcher_lib.install.install_minecraft_version(base_mc_version, self.minecraft_dir, callback=callback)
+                self.log_and_update_status(f"Minecraft {base_mc_version} installed successfully.")
             else:
-                self.log_and_update_status(f"Base version {base_mc_version} already installed.")
+                self.log_and_update_status(f"Minecraft {base_mc_version} already installed.")
 
             version_id_to_launch = base_mc_version
             profile_name = base_mc_version
@@ -230,8 +231,46 @@ class MinecraftWorker(QThread):
 
             self.log_message.emit(f"ERROR: An error occurred: {e}")
             self.log_message.emit(traceback.format_exc())
+
+            # Enhanced error classification
+            err_str = str(e) + game_output
+            if isinstance(e, PermissionError) or "WinError 32" in err_str or "being used by another process" in err_str:
+                error_details["type"] = "file_lock_error"
+            elif "Could not find net/minecraft/client/Minecraft.class" in game_output:
+                error_details["type"] = "file_corruption"
+            elif isinstance(e, GameProcessError):
+                if "IncompatibleEnvironmentException" in e.output or "InvalidLauncherSetupException" in e.output:
+                    error_details["type"] = "mod_incompatibility"
+                    error_details["message"] = "A mod is incompatible with this version of Minecraft or mod loader."
+                elif "net.fabricmc.loader" in e.output and ("Unmet dependency" in e.output or "requires" in e.output):
+                    error_details["type"] = "fabric_dependency_error"
+                    error_details["dependency"] = self._extract_missing_dependency(e.output)
+                elif e.exit_code == 1:
+                    error_details["type"] = "invalid_jvm_argument"
+                else:
+                    error_details["type"] = "file_corruption"
+            elif isinstance(e, FileNotFoundError):
+                error_details["type"] = "invalid_java_path"
+            else:
+                error_details["type"] = "generic"
+
             self.finished.emit("error", error_details)
 
     def log_and_update_status(self, text):
-        self.progress_update.emit(0, 0, text) 
+        self.progress_update.emit(0, 0, text)
         self.log_message.emit(f"[{datetime.now().strftime('%H:%M:%S')}] {text}")
+
+    def _extract_missing_dependency(self, output: str) -> str:
+        """Try to extract the missing mod/dependency name from Fabric error output."""
+        import re
+        # Fabric API error format: "requires {modid} X.Y.Z or later"
+        patterns = [
+            r"requires\s+([a-z_\-]+)\s+\d",
+            r"missing mod\s+([a-z_\-]+)",
+            r"Unmet dependency:\s+([a-z_\-]+)",
+        ]
+        for pat in patterns:
+            m = re.search(pat, output, re.IGNORECASE)
+            if m:
+                return m.group(1)
+        return "required mods"
