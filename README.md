@@ -38,7 +38,7 @@ Hru Hru Launcher is a custom Minecraft launcher built with Python and PySide6, p
 
 ## Preview
 
-![Launcher Screenshot](https://i.postimg.cc/y8hygM23/Screenshot-2025-07-14-050917.png)
+![Launcher Screenshot](https://i.postimg.cc/3RV24LNL/screenshot.png)
 
 ## Installation (for Developers)
 
